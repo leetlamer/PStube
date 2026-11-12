@@ -8,7 +8,7 @@
 
 PStube is a standalone native homebrew app with a blue TV interface, controller
 navigation, Google account support and software-decoded video playback.
-Current release: **PS5 beta 0.16**.
+Current release: **PS5 beta 0.17**.
 
 ## Requirements
 
@@ -32,18 +32,19 @@ Playback runs on the console; no PC transcoding server is required.
 ## Features
 
 - Home, Music, Gaming, News and Live category shelves, search and Shorts.
-- Larger thumbnails, scrolling titles/descriptions and controller navigation.
+- Larger rounded thumbnail cards, animated shelves with neighboring previews, scrolling titles/descriptions.
+- Buffered streaming with bounded reconnection and selectable 6/8/10 decoder threads (8 default).
 - Google account linking, saved accounts, subscriptions, history and playlists.
 - Playback controls, seeking, captions, video metrics and automatic next-video options.
 - Optional SponsorBlock to skip creator sponsorship segments and optional DeArrow.
 - App-level DNS-over-HTTPS and proxy settings.
 
 **1080p is the recommended default.** Native 4K and live playback remain experimental
-and source-dependent. Hardware decoding and HDMI refresh switching are not implemented.
+and source-dependent. HDR output, hardware decoding and HDMI refresh switching are not implemented.
 DeArrow alternate titles are verified; replacement thumbnails need further testing.
 
-[Beta guide](pstube-ps5/docs/BETA_V016.md) ·
-[Test results](pstube-ps5/docs/BETA_V016_TEST_RESULTS.md) ·
+[Beta guide](pstube-ps5/docs/BETA_V017.md) ·
+[Test results](pstube-ps5/docs/BETA_V017_TEST_RESULTS.md) ·
 [Feature status](pstube-ps5/docs/BETA_FEATURE_MATRIX.md)
 
 ## Building from source
@@ -60,18 +61,8 @@ licences and attribution; see [third-party notices](THIRD_PARTY.md).
 PStube is independent and is not affiliated with Sony or Google.
 
 
-## UI previews
+## Gaming
 
-Rendered from the beta 0.16 native UI using sample content and placeholder thumbnails. These are development previews, not PS5 capture screenshots.
+Captured on PS5 after the visible video thumbnails finished loading.
 
-### Home and category shelves
-
-![PStube Home with category shelves and controller navigation](pstube-ps5/branding/pstube-home-v016.png)
-
-### Seeking and SponsorBlock markers
-
-![PStube seek bar with elapsed time, remaining time and coloured SponsorBlock ranges](pstube-ps5/branding/pstube-seek-v016.png)
-
-### Network settings
-
-![PStube network settings with DNS over HTTPS and proxy options](pstube-ps5/branding/pstube-network-v016.png)
+![PStube Gaming section with loaded video thumbnails](pstube-ps5/branding/pstube-gaming-v017.png)
