@@ -1,5 +1,9 @@
 #pragma once
 #include "console_curl.h"
+#include <unistd.h>
+extern "C" {
+#include <libavformat/avio.h>
+}
 #include "seek_timeline.h"
 #include "software_benchmark.h"
 namespace probe {
@@ -43,10 +47,10 @@ inline Document performRequest(const smarttube::Request& request,size_t limit=4*
 }
 class CurlStream {
     pthread_mutex_t mutex_=PTHREAD_MUTEX_INITIALIZER;pthread_cond_t changed_=PTHREAD_COND_INITIALIZER;pthread_t thread_{};
-    static constexpr size_t Capacity=2*1024*1024;uint8_t* data_=nullptr;size_t read_=0,count_=0;bool stop_=false,done_=false,started_=false,failed_=false;
+    static constexpr size_t Capacity=8*1024*1024;uint8_t* data_=nullptr;size_t read_=0,count_=0;bool stop_=false,done_=false,started_=false,failed_=false;
     std::atomic<bool> cancelled_{false};bool hls_=false;
     int64_t offset_=0,length_=-1,rangeStart_=-1;long headerStatus_=0;bool headersReady_=false;
-    std::string url_,agent_;uint64_t downloaded_=0,consumed_=0;BenchLog log_;
+    std::string url_,agent_;uint64_t downloaded_=0,consumed_=0,faultAt_=0;bool faulted_=false;BenchLog log_;
     static size_t header(char* bytes,size_t size,size_t count,void* opaque) {
         if(size && count>SIZE_MAX/size) return 0;size_t n=size*count;auto& self=*static_cast<CurlStream*>(opaque);std::string line(bytes,n);
         pthread_mutex_lock(&self.mutex_);
@@ -63,25 +67,45 @@ class CurlStream {
             pthread_mutex_lock(&self.mutex_);while(self.count_==Capacity && !self.stop_) pthread_cond_wait(&self.changed_,&self.mutex_);
             if(self.stop_) {pthread_mutex_unlock(&self.mutex_);return 0;}
             size_t at=(self.read_+self.count_)%Capacity,n=Capacity-self.count_;if(n>Capacity-at) n=Capacity-at;if(n>remaining) n=remaining;
-            memcpy(self.data_+at,bytes,n);bytes+=n;remaining-=n;self.count_+=n;self.downloaded_+=n;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);
+            if(self.faultAt_ && !self.faulted_) n=std::min(n,(size_t)(self.faultAt_-self.downloaded_));
+            memcpy(self.data_+at,bytes,n);bytes+=n;remaining-=n;self.count_+=n;self.downloaded_+=n;bool interrupt=self.faultAt_ && !self.faulted_ && self.downloaded_>=self.faultAt_;if(interrupt) self.faulted_=true;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);
+            if(interrupt) {self.log_("STREAM diagnostic_interruption=1 received=%llu",(unsigned long long)self.downloaded_);return 0;}
         }return total;
     }
     static void* entry(void* opaque) {
         auto& self=*static_cast<CurlStream*>(opaque);
         if(self.hls_) {self.hlsWork();return nullptr;}
-        CURL* curl=curl_easy_init();CURLcode rc=CURLE_FAILED_INIT;long status=0;
+        CURLcode rc=CURLE_FAILED_INIT;long status=0;unsigned retries=0;
+        for(;;) {
+        bool previouslyFaulted=self.faulted_;CURL* curl=curl_easy_init();uint64_t before=0;int64_t requestOffset=0;
+        pthread_mutex_lock(&self.mutex_);before=self.downloaded_;requestOffset=self.offset_;pthread_mutex_unlock(&self.mutex_);
         if(curl) {
             console_curl_setup(curl);CURLcode network=console_curl_apply_network(curl,nullptr);
-            if(network!=CURLE_OK) {curl_easy_cleanup(curl);pthread_mutex_lock(&self.mutex_);self.done_=self.failed_=true;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);self.log_("STREAM network_config_error=%d",(int)network);return nullptr;}
+            if(network!=CURLE_OK) {curl_easy_cleanup(curl);rc=network;break;}
             curl_easy_setopt(curl,CURLOPT_URL,self.url_.c_str());curl_easy_setopt(curl,CURLOPT_USERAGENT,self.agent_.c_str());
-            curl_easy_setopt(curl,CURLOPT_CONNECTTIMEOUT,15L);curl_easy_setopt(curl,CURLOPT_LOW_SPEED_LIMIT,1L);curl_easy_setopt(curl,CURLOPT_LOW_SPEED_TIME,15L);
+            curl_easy_setopt(curl,CURLOPT_CONNECTTIMEOUT,15L);curl_easy_setopt(curl,CURLOPT_LOW_SPEED_LIMIT,1L);curl_easy_setopt(curl,CURLOPT_LOW_SPEED_TIME,30L);
             curl_easy_setopt(curl,CURLOPT_FOLLOWLOCATION,1L);curl_easy_setopt(curl,CURLOPT_MAXREDIRS,3L);curl_easy_setopt(curl,CURLOPT_PROTOCOLS_STR,"https");curl_easy_setopt(curl,CURLOPT_REDIR_PROTOCOLS_STR,"https");
             curl_easy_setopt(curl,CURLOPT_SSL_VERIFYPEER,1L);curl_easy_setopt(curl,CURLOPT_SSL_VERIFYHOST,2L);curl_easy_setopt(curl,CURLOPT_FAILONERROR,1L);
             curl_easy_setopt(curl,CURLOPT_NOPROGRESS,0L);curl_easy_setopt(curl,CURLOPT_XFERINFOFUNCTION,+[](void* p,curl_off_t,curl_off_t,curl_off_t,curl_off_t)->int {return static_cast<CurlStream*>(p)->cancelled_.load()?1:0;});curl_easy_setopt(curl,CURLOPT_XFERINFODATA,&self);
             curl_easy_setopt(curl,CURLOPT_HEADERFUNCTION,header);curl_easy_setopt(curl,CURLOPT_HEADERDATA,&self);
-            std::string range=std::to_string(self.offset_)+"-";if(self.offset_) curl_easy_setopt(curl,CURLOPT_RANGE,range.c_str());
+            std::string range=std::to_string(requestOffset)+"-";if(requestOffset) curl_easy_setopt(curl,CURLOPT_RANGE,range.c_str());
             curl_easy_setopt(curl,CURLOPT_WRITEFUNCTION,write);curl_easy_setopt(curl,CURLOPT_WRITEDATA,&self);rc=curl_easy_perform(curl);curl_easy_getinfo(curl,CURLINFO_RESPONSE_CODE,&status);curl_easy_cleanup(curl);
         }
+        pthread_mutex_lock(&self.mutex_);uint64_t received=self.downloaded_-before;int64_t length=self.length_;bool stopped=self.stop_;pthread_mutex_unlock(&self.mutex_);
+        int64_t resume=requestOffset+(int64_t)received;
+        bool shortResponse=rc==CURLE_OK && length>=0 && resume<length;
+        bool transient=(self.faulted_ && !previouslyFaulted) || rc==CURLE_RECV_ERROR || rc==CURLE_SEND_ERROR || rc==CURLE_OPERATION_TIMEDOUT || rc==CURLE_PARTIAL_FILE || rc==CURLE_GOT_NOTHING || rc==CURLE_HTTP2 || rc==CURLE_HTTP2_STREAM || (rc==CURLE_HTTP_RETURNED_ERROR && (status==429 || status>=500));
+        if(stopped || self.cancelled_ || (!shortResponse && !transient)) break;
+        if(length>=0 && resume==length) {rc=CURLE_OK;break;}
+        if(retries>=8) {if(shortResponse) rc=CURLE_PARTIAL_FILE;break;}
+        ++retries;self.log_("STREAM reconnect attempt=%u rc=%d status=%ld offset=%lld length=%lld buffered_capacity=%zu",retries,(int)rc,status,(long long)resume,(long long)length,Capacity);
+        pthread_mutex_lock(&self.mutex_);self.offset_=resume;self.headersReady_=false;pthread_mutex_unlock(&self.mutex_);
+        // Keep unread bytes in the ring. Resume AFTER all accepted bytes, never after
+        // just the consumed cursor, so buffered audio/video is neither lost nor duplicated.
+        for(unsigned n=0;n<std::min(20u,retries*3) && !self.cancelled_;++n) usleep(50000);
+        if(self.cancelled_) {rc=CURLE_ABORTED_BY_CALLBACK;break;}
+        }
+
         pthread_mutex_lock(&self.mutex_);self.done_=true;self.failed_=rc!=CURLE_OK && !self.stop_;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);
         self.log_("STREAM download_end rc=%d status=%ld",(int)rc,status);return nullptr;
     }
@@ -111,7 +135,7 @@ class CurlStream {
     }
 
 public:
-    explicit CurlStream(BenchLog log):log_(log) {}
+    explicit CurlStream(BenchLog log,uint64_t diagnosticFaultAt=0):faultAt_(diagnosticFaultAt),log_(log) {}
     bool start(const std::string& url,const std::string& agent,bool hls=false) {
         hls_=hls;
         if(url.compare(0,8,"https://")) return false;data_=static_cast<uint8_t*>(malloc(Capacity));if(!data_) return false;url_=url;agent_=agent;

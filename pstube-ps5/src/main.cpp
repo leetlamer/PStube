@@ -290,12 +290,13 @@ bool presentLocal(void* opaque,const AVFrame* picture,SwsContext* scaler,unsigne
     char label[96];snprintf(label,sizeof(label),"VP NINE %s %s",height==1080?"FULL HD":height==1440?"TWO K":height==2160?"FOUR K":"VIDEO",threads==4?"FOUR THREADS":"SIX THREADS");
     unsigned scale=state.video->width/1920;
     probe::rect(state.video->linear,0,0,state.video->width,52*scale,0xff20120c,state.video->width,state.video->height);probe::text(state.video->linear,20*scale,12*scale,label,3*scale,state.video->width,state.video->height);
-    if(state.pcm && (number<180 || probe::benchmarkTime()<state.controlsUntil)) {
+    if(state.pcm && (probe::benchmarkTime()<state.controlsUntil)) {
         probe::rect(state.video->linear,0,1020*scale,state.video->width,60*scale,0xff20120c,state.video->width,state.video->height);probe::text(state.video->linear,20*scale,1035*scale,"CROSS PAUSE CIRCLE BACK R ONE NEXT OPTIONS EXIT",3*scale,state.video->width,state.video->height);
     }
     #endif
 #ifdef PSTUBE_PROTOTYPE
-    if(state.controls) state.controls(number<120 || probe::benchmarkTime()<state.controlsUntil,false,number);
+    if(number==0) logLine("PLAYER controls_start visible=%d input_triggered=%d",probe::benchmarkTime()<state.controlsUntil,pressed!=0);
+    if(state.controls) state.controls(probe::benchmarkTime()<state.controlsUntil,false,number);
     if(state.debug) state.debug(number);
 #endif
     *conversion=(probe::benchmarkTime()-before)*1000;before=probe::benchmarkTime();
@@ -311,7 +312,7 @@ bool presentLocal(void* opaque,const AVFrame* picture,SwsContext* scaler,unsigne
 }
 int main(int argc,char** argv) {
     (void)argc;(void)argv;
-    openLog();logLine("PStube PS5 Platform Test 0.16; target=PS5 Pro FW13.00 sdk=v0.45");
+    openLog();logLine("PStube PS5 Platform Test 0.17; target=PS5 Pro FW13.00 sdk=v0.45");
     logLine("log=%s pid=%d uid=%d",logPath,getpid(),getuid());
     struct utsname os{};if(uname(&os)==0) logLine("os=%s release=%s machine=%s",os.sysname,os.release,os.machine);
     auto model=reinterpret_cast<int(*)(char*)>(dlsym(RTLD_DEFAULT,"sceKernelGetHwModelName"));

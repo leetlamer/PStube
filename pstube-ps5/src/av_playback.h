@@ -5,20 +5,22 @@
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libswresample/swresample.h>
+#include <libavutil/opt.h>
 }
 namespace probe {
 struct VideoStreamMetrics {int width=0,height=0,threads=0;double fps=0;const char* codec="unknown";};
 inline int avFileRead(void* file,uint8_t* data,int size) {size_t got=fread(data,1,(size_t)size,static_cast<FILE*>(file));return got?(int)got:feof(static_cast<FILE*>(file))?AVERROR_EOF:AVERROR(EIO);}
 inline int64_t avFileSeek(void* opaque,int64_t offset,int origin) {FILE* file=static_cast<FILE*>(opaque);if(origin==AVSEEK_SIZE) {off_t before=ftello(file);if(fseeko(file,0,SEEK_END)) return -1;off_t size=ftello(file);fseeko(file,before,SEEK_SET);return size;}origin &= ~AVSEEK_FORCE;if(origin!=SEEK_SET && origin!=SEEK_CUR && origin!=SEEK_END) return -1;return fseeko(file,offset,origin)?-1:ftello(file);}
 
-inline AVCodecContext* openTrack(AVFormatContext* input,int track,BenchLog log) {
+inline AVCodecContext* openTrack(AVFormatContext* input,int track,BenchLog log,int threads=8) {
     if(track<0) return nullptr;auto* parameters=input->streams[track]->codecpar;
     const AVCodec* codec=avcodec_find_decoder(parameters->codec_id);AVCodecContext* decoder=codec?avcodec_alloc_context3(codec):nullptr;
-    if(!decoder) return nullptr;decoder->thread_count=6;decoder->thread_type=FF_THREAD_FRAME|FF_THREAD_SLICE;
+    if(!decoder) return nullptr;decoder->thread_count=parameters->codec_type==AVMEDIA_TYPE_VIDEO?std::max(1,std::min(threads,10)):1;decoder->thread_type=FF_THREAD_FRAME|FF_THREAD_SLICE;
     int rc=avcodec_parameters_to_context(decoder,parameters);if(rc>=0) rc=avcodec_open2(decoder,codec,nullptr);
-    if(rc<0) {log("AV open_decoder track=%d rc=%d",track,rc);avcodec_free_context(&decoder);}return decoder;
+    if(rc<0) {log("AV open_decoder track=%d rc=%d",track,rc);avcodec_free_context(&decoder);}
+    else log("AV decoder track=%d codec=%s threads=%d active_thread_type=%d",track,avcodec_get_name(decoder->codec_id),decoder->thread_count,decoder->active_thread_type);return decoder;
 }
-inline bool playAv(const char* path,PresentPicture present,void* display,PcmQueue& pcm,BenchLog log,AVIOContext* external=nullptr,unsigned maxPictures=0,bool videoOnly=false,int outputWidth=1920,int outputHeight=1080,bool recoverLate=false,bool liveTimeline=false,double* mediaPosition=nullptr,double startSeconds=0,VideoStreamMetrics* metrics=nullptr) {
+inline bool playAv(const char* path,PresentPicture present,void* display,PcmQueue& pcm,BenchLog log,AVIOContext* external=nullptr,unsigned maxPictures=0,bool videoOnly=false,int outputWidth=1920,int outputHeight=1080,bool recoverLate=false,bool liveTimeline=false,double* mediaPosition=nullptr,double startSeconds=0,VideoStreamMetrics* metrics=nullptr,int decoderThreads=8,int scalerThreads=2) {
     AVFormatContext* input=nullptr;AVCodecContext* video=nullptr;AVCodecContext* audio=nullptr;SwsContext* scaler=nullptr;SwrContext* resampler=nullptr;
     AVPacket* packet=av_packet_alloc();AVFrame* frame=av_frame_alloc();bool ok=packet && frame;unsigned pictures=0,audioFrames=0,late=0,decodedPictures=0,droppedPictures=0;bool limited=false;double anchor=0,maxSkew=0,firstPts=0;bool haveFirstPts=false;
     FILE* file=external?nullptr:fopen(path,"rb");AVIOContext* io=external;
@@ -29,10 +31,17 @@ inline bool playAv(const char* path,PresentPicture present,void* display,PcmQueu
     if(rc>=0) rc=avformat_find_stream_info(input,nullptr);ok=rc>=0;
     int vi=ok?av_find_best_stream(input,AVMEDIA_TYPE_VIDEO,-1,-1,nullptr,0):-1;
     int ai=ok && !videoOnly?av_find_best_stream(input,AVMEDIA_TYPE_AUDIO,-1,-1,nullptr,0):-1;
-    if(ok) {video=openTrack(input,vi,log);audio=openTrack(input,ai,log);ok=video && (audio || videoOnly) && video->width>0 && video->width<=3840 && video->height>0 && video->height<=2160;}
+    if(ok) {video=openTrack(input,vi,log,decoderThreads);audio=openTrack(input,ai,log);ok=video && (audio || videoOnly) && video->width>0 && video->width<=3840 && video->height>0 && video->height<=2160;}
     if(ok && startSeconds>0) {int64_t target=(int64_t)(startSeconds*AV_TIME_BASE);rc=avformat_seek_file(input,-1,INT64_MIN,target,target,AVSEEK_FLAG_BACKWARD);log("SEEK video target=%.3f rc=%d",startSeconds,rc);ok=rc>=0;}
     if(ok) {
-        scaler=sws_getContext(video->width,video->height,video->pix_fmt,fitWidth(video->width,video->height,outputWidth,outputHeight),fitHeight(video->width,video->height,outputWidth,outputHeight),AV_PIX_FMT_RGBA,SWS_BILINEAR,nullptr,nullptr,nullptr);
+        scaler=sws_alloc_context();
+        if(scaler) {
+            av_opt_set_int(scaler,"srcw",video->width,0);av_opt_set_int(scaler,"srch",video->height,0);av_opt_set_int(scaler,"src_format",video->pix_fmt,0);
+            av_opt_set_int(scaler,"dstw",fitWidth(video->width,video->height,outputWidth,outputHeight),0);av_opt_set_int(scaler,"dsth",fitHeight(video->width,video->height,outputWidth,outputHeight),0);av_opt_set_int(scaler,"dst_format",AV_PIX_FMT_RGBA,0);
+            av_opt_set_int(scaler,"sws_flags",SWS_BILINEAR,0);av_opt_set_int(scaler,"threads",std::max(1,std::min(scalerThreads,2)),0);
+            if(sws_init_context(scaler,nullptr,nullptr)<0) {sws_freeContext(scaler);scaler=nullptr;}
+        }
+        log("AV resources decoder_threads=%d scaler_threads=%d online_cpus=%ld streaming_ring_bytes=%u HDR_output=0",video->thread_count,scalerThreads,sysconf(_SC_NPROCESSORS_ONLN),8u*1024u*1024u);
         AVChannelLayout stereo=AV_CHANNEL_LAYOUT_STEREO;
         rc=0;if(audio) rc=swr_alloc_set_opts2(&resampler,&stereo,AV_SAMPLE_FMT_S16,48000,&audio->ch_layout,audio->sample_fmt,audio->sample_rate,0,nullptr);
         ok=scaler && rc>=0 && (!audio || swr_init(resampler)>=0);
@@ -69,7 +78,7 @@ inline bool playAv(const char* path,PresentPicture present,void* display,PcmQueu
                 if(recoverLate && decodedPictures>4 && skew>0.035) {++droppedPictures;av_frame_unref(frame);continue;}
                 if(mediaPosition) *mediaPosition=std::max(0.0,pts*1000);
                 double conversion=0,presentation=0;
-                if(!present(display,frame,scaler,(unsigned)video->height,6,pictures,&conversion,&presentation)) {av_frame_unref(frame);return false;}
+                if(!present(display,frame,scaler,(unsigned)video->height,video->thread_count,pictures,&conversion,&presentation)) {av_frame_unref(frame);return false;}
                 ++pictures;if(maxPictures && pictures>=maxPictures) {limited=true;av_frame_unref(frame);return false;}
             }
             av_frame_unref(frame);

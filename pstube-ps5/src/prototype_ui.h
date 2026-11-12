@@ -6,11 +6,12 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
     logLine("UI imported_icons=%u",canvas->loadIcons());
     probe::NetworkPreferences networkPreferences;networkPreferences.load("/data/pstube-ps5-network.json");networkPreferences.apply();
     smarttube::Library library;library.load("/data/pstube-ps5-library.json");
-    bool browseTest=!strcmp(smokeMode,"--browse-test") || !strcmp(smokeMode,"--browse-dearrow"),menuTest=!strcmp(smokeMode,"--beta-test") || !strcmp(smokeMode,"--dearrow-test") || browseTest,networkTest=!strcmp(smokeMode,"--network-test");
+    bool captureTest=!strcmp(smokeMode,"--browse-capture");bool browseTest=!strcmp(smokeMode,"--browse-test") || !strcmp(smokeMode,"--browse-dearrow"),menuTest=!strcmp(smokeMode,"--beta-test") || !strcmp(smokeMode,"--dearrow-test") || browseTest || captureTest,networkTest=!strcmp(smokeMode,"--network-test");
     auto save=[&]() {if(!smoke && !menuTest && !networkTest && !library.save("/data/pstube-ps5-library.json")) logLine("APP library_save_failed");};
     if(!strcmp(smokeMode,"--smoke-services") || !strcmp(smokeMode,"--smoke-sponsor-real")) {library.preferences.sponsorMute=true;library.preferences.dearrow=true;}
     if(!strcmp(smokeMode,"--browse-dearrow") || !strcmp(smokeMode,"--dearrow-test")) {library.preferences.dearrow=true;library.preferences.dearrowTitles=library.preferences.dearrowThumbnails=true;}
-    if(smoke) {library.preferences.height=!strcmp(smokeMode,"--smoke-1440")?1440:(!strcmp(smokeMode,"--smoke-2160") || !strcmp(smokeMode,"--smoke-native4k"))?2160:1080;library.preferences.native4k=!strcmp(smokeMode,"--smoke-native4k");}
+    if(smoke) {library.preferences.height=strstr(smokeMode,"1440")?1440:(strstr(smokeMode,"2160") || !strcmp(smokeMode,"--smoke-native4k"))?2160:1080;library.preferences.native4k=!strcmp(smokeMode,"--smoke-native4k");}
+    if(strstr(smokeMode,"threads10")) library.preferences.decoderThreads=10;
     uint64_t flips=0;std::string status="Loading PStube...";std::string query,visitor,continuation;int page=0;
     std::vector<smarttube::Shelf> shelves;bool shelfLayout=false,reelFeed=false;
     std::vector<smarttube::Video> items;std::map<std::string,std::shared_ptr<smarttube::Image>> images;size_t selected=0;std::map<std::string,bool> thumbnailAttempted;size_t thumbnailPage=SIZE_MAX;
@@ -18,7 +19,7 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
     std::string browseId,browseParams;bool channelList=false,playlistList=false,liveFeed=false;probe::BetaAccount* account=nullptr;
     smarttube::Keyboard keyboard;bool editing=false,quit=false,queuedPlay=false;uint32_t previous=controller.read();
     probe::DocumentJob descriptionJob;std::map<std::string,std::string> descriptions;std::string descriptionId,marqueeId;unsigned descriptionStage=0;double marqueeSince=probe::benchmarkTime();
-    unsigned previousUiState=UINT32_MAX;
+    std::map<std::string,smarttube::CarouselMotion> carousel;unsigned previousUiState=UINT32_MAX;
     auto screen=[&]() {
         unsigned uiState=(unsigned)(menu+1)+(sidebar?32:0)+(editing?64:0)+(accountOptions?128:0)+(pairingView?256:0)+(unsigned)accountRow*512;
         if(uiState!=previousUiState) {logLine("UI view menu=%d sidebar=%d keyboard=%d accounts=%d pairing=%d account_row=%d",menu,sidebar,editing,accountOptions,pairingView,accountRow);previousUiState=uiState;}
@@ -30,8 +31,8 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
             view.subtitle="Browse videos and channels";view.status=status;view.videos=items;view.thumbnails=images;
             std::string focus=!sidebar && selected<items.size()?items[selected].id:std::string();if(focus!=marqueeId) {marqueeId=focus;marqueeSince=probe::benchmarkTime();}
             view.selectedSeconds=probe::benchmarkTime()-marqueeSince;if(descriptions.count(focus)) view.description=descriptions[focus];
-            view.shelves=shelves;view.library=&library;view.selected=selected;view.busy=busy;view.channelList=channelList;
-            if(account) {view.linked=account->oauth.linked();view.accountName=account->profile.name;view.accountImage=account->avatar;}
+            view.shelves=shelves;for(const auto& shelf:shelves) {size_t cursor=selected>=shelf.first && selected<shelf.first+shelf.count?selected-shelf.first:shelf.cursor;std::string key=shelf.title+(shelf.first<items.size()?items[shelf.first].id:"");view.shelfOffsets.push_back(carousel[key].step(smarttube::carouselTarget(cursor,shelf.count),probe::benchmarkTime()));}view.library=&library;view.selected=selected;view.busy=busy;view.channelList=channelList;
+            if(account && !captureTest) {view.linked=account->oauth.linked();view.accountName=account->profile.name;view.accountImage=account->avatar;}
             smarttube::drawBrowse(*canvas,view);
             if(accountOptions && account) smarttube::drawAccountOptions(*canvas,accountRow,account->profile.name,account->oauth.status,account->slots.preferred,(unsigned)account->slots.slots.size());
             if(pairingView && account) smarttube::drawAccount(*canvas,account->oauth.status,account->oauth.userCode,account->oauth.verificationUrl);
@@ -54,7 +55,7 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
             for(unsigned y=0;y<video.height;++y) for(unsigned x=left;x<video.width;++x) {auto& p=video.linear[(size_t)y*video.width+x];p=(p&0xff00ff00u)|((p&255u)<<16)|((p>>16)&255u);}
             if(!video.frame(flips%2,flips)) {quit=true;break;}++flips;uint32_t buttons=controller.read(),pressed=buttons&~previous;previous=buttons;
             if(pressed&PS5_PAD_BUTTON_OPTIONS) {quit=true;break;}if(pressed&PS5_PAD_BUTTON_CIRCLE) break;
-            if(pressed&PS5_PAD_BUTTON_UP && row) --row;if(pressed&PS5_PAD_BUTTON_DOWN && row<8) ++row;
+            if(pressed&PS5_PAD_BUTTON_UP && row) --row;if(pressed&PS5_PAD_BUTTON_DOWN && row<10) ++row;
             if(pressed&(PS5_PAD_BUTTON_LEFT|PS5_PAD_BUTTON_RIGHT|PS5_PAD_BUTTON_CROSS)) {
                 if(row==0) library.preferences.sponsorMute=!library.preferences.sponsorMute;
                 if(row>=1 && row<=5) library.preferences.sponsorCategories^=1u<<(row-1);
@@ -69,8 +70,8 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
             unsigned w=video.width,h=video.height,scale=w/1920;int left=(int)w*2/5;
             canvas->surface({video.linear,(int)w,(int)h,(int)w});canvas->rect(left,0,w-left,h,0xff102941);
             canvas->text("Playback settings",left+45*scale,55*scale,34*scale,0xffeef6ff,w-left-70*scale);
-            std::string rows[]={"Source quality: "+smarttube::qualityLabel(library.preferences.height),std::string("Display output: ")+(library.preferences.native4k?"2160p (experimental)":"1080p"),"Frame rate: up to "+std::to_string(library.preferences.maxFps),std::string("After video: ")+smarttube::endModeLabel(library.preferences.endMode),std::string("Debug metrics: ")+(library.preferences.debugMetrics?"On":"Off"),(playing?"Network settings (Home only)":"Network settings"),std::string("SponsorBlock settings: ")+(library.preferences.sponsorMute?"On":"Off"),std::string("DeArrow: ")+(!library.preferences.dearrow?"Off":library.preferences.dearrowTitles && library.preferences.dearrowThumbnails?"Titles + thumbnails":library.preferences.dearrowTitles?"Titles only":"Thumbnails only"),"Back"};
-            for(int i=0;i<9;++i) {int y=(150+i*72)*scale;canvas->rect(left+24*scale,y,w-left-48*scale,62*scale,i==row?0xff329dff:0xff173550);canvas->text(rows[i],left+42*scale,y+18*scale,27*scale,0xffeef6ff,w-left-75*scale);}
+            std::string rows[]={"Source quality: "+smarttube::qualityLabel(library.preferences.height),std::string("Display output: ")+(library.preferences.native4k?"2160p (experimental)":"1080p"),"Frame rate: up to "+std::to_string(library.preferences.maxFps),std::string("After video: ")+smarttube::endModeLabel(library.preferences.endMode),std::string("Debug metrics: ")+(library.preferences.debugMetrics?"On":"Off"),(playing?"Network settings (Home only)":"Network settings"),std::string("SponsorBlock settings: ")+(library.preferences.sponsorMute?"On":"Off"),std::string("DeArrow: ")+(!library.preferences.dearrow?"Off":library.preferences.dearrowTitles && library.preferences.dearrowThumbnails?"Titles + thumbnails":library.preferences.dearrowTitles?"Titles only":"Thumbnails only"),"Decoder threads: "+std::to_string(library.preferences.decoderThreads),"HDR output: unavailable (SDR)","Back"};
+            for(int i=0;i<11;++i) {int y=(145+i*60)*scale;canvas->rect(left+24*scale,y,w-left-48*scale,54*scale,i==row?0xff329dff:0xff173550);canvas->text(rows[i],left+42*scale,y+18*scale,27*scale,0xffeef6ff,w-left-75*scale);}
             canvas->text(playing?"Next video/browse applies changes. SponsorBlock skips marked sponsors.":"Optional services share video IDs with sponsor.ajay.app. Circle returns.",left+35*scale,850*scale,23*scale,0xff9db4cc,w-left-60*scale,2);
             for(unsigned y=0;y<h;++y) for(unsigned x=left;x<w;++x) {auto& p=video.linear[(size_t)y*w+x];p=(p&0xff00ff00u)|((p&255u)<<16)|((p>>16)&255u);}
             if(!video.frame(flips%2,flips)) return false;++flips;
@@ -85,7 +86,8 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
                 if(row==2) library.preferences.maxFps=library.preferences.maxFps==60?30:60;
                 if(row==3) library.preferences.endMode=smarttube::nextEndMode(library.preferences.endMode);
                 if(row==4) library.preferences.debugMetrics=!library.preferences.debugMetrics;
-                if(row==5 && !playing && networkPanel) networkPanel();if(row==6) sponsorPanel();if(row==7) {int mode=!library.preferences.dearrow?0:library.preferences.dearrowTitles && library.preferences.dearrowThumbnails?1:library.preferences.dearrowTitles?2:3;mode=(mode+(direction<0?3:1))%4;library.preferences.dearrow=mode!=0;library.preferences.dearrowTitles=mode==1 || mode==2;library.preferences.dearrowThumbnails=mode==1 || mode==3;}if(row==8) running=false;save();
+                if(row==5 && !playing && networkPanel) networkPanel();if(row==6) sponsorPanel();if(row==7) {int mode=!library.preferences.dearrow?0:library.preferences.dearrowTitles && library.preferences.dearrowThumbnails?1:library.preferences.dearrowTitles?2:3;mode=(mode+(direction<0?3:1))%4;library.preferences.dearrow=mode!=0;library.preferences.dearrowTitles=mode==1 || mode==2;library.preferences.dearrowThumbnails=mode==1 || mode==3;}if(row==8) {unsigned n=library.preferences.decoderThreads;library.preferences.decoderThreads=direction<0?(n==6?10:n==8?6:8):(n==10?6:n==8?10:8);}
+                if(row==9) logLine("HDR unavailable: verified 8-bit SDR framebuffer; HDR10 output/metadata path not implemented");if(row==10) running=false;save();
             }
         }
         logLine("APP settings height=%d native4k=%d max_fps=%d end_mode=%d debug=%d",library.preferences.height,library.preferences.native4k,library.preferences.maxFps,(int)library.preferences.endMode,library.preferences.debugMetrics);return !quit;
@@ -164,21 +166,21 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
         }
     };
     probe::BetaAccount accountState(fetch);account=&accountState;
-    if(account->oauth.linked()) {status="Restoring account...";account->loadProfile();}
-    probe::ThumbnailLoader thumbnailLoader;logLine("UI workers=%u image_workers=2 dearrow_worker=1 persistent_connections=1 decode=384x216",thumbnailLoader.workers());
+    if(account->oauth.linked() && !captureTest) {status="Restoring account...";account->loadProfile();}
+    probe::ThumbnailLoader thumbnailLoader;logLine("UI workers=%u image_workers=2 dearrow_worker=1 persistent_connections=1 decode=640x360",thumbnailLoader.workers());
     auto visibleItems=[&]() {
         std::vector<smarttube::Video> visible;
         if(shelves.empty()) {size_t first=smarttube::resultFirst(selected,channelList),count=channelList?6:16;for(size_t i=first;i<items.size() && i<first+count;++i) visible.push_back(items[i]);}
-        else {size_t active=smarttube::selectedShelf(shelves,selected),top=active>=2?active-2:0;
-            auto add=[&](size_t row) {auto& shelf=shelves[row];size_t cursor=row==active?selected-shelf.first:shelf.cursor;for(size_t col=cursor/4*4;col<shelf.count && col<cursor/4*4+4;++col) visible.push_back(items[shelf.first+col]);};
-            add(active);for(size_t r=top;r<shelves.size() && r<top+3;++r) if(r!=active) add(r);
+        else {size_t active=smarttube::selectedShelf(shelves,selected),top=active?active-1:0;
+            auto add=[&](size_t row) {auto& shelf=shelves[row];size_t cursor=row==active?selected-shelf.first:shelf.cursor;size_t start=cursor>2?cursor-2:0;for(size_t col=start;col<shelf.count && col<start+6;++col) visible.push_back(items[shelf.first+col]);};
+            add(active);for(size_t r=top;r<shelves.size() && r<top+2;++r) if(r!=active) add(r);
         }return visible;
     };
     auto thumbnails=[&]() {
         thumbnailLoader.dearrow(library.preferences.dearrow,library.preferences.dearrowTitles,library.preferences.dearrowThumbnails);auto visible=visibleItems();thumbnailLoader.visible(visible,0,visible.size(),images);size_t first=smarttube::resultFirst(selected,channelList),count=channelList?smarttube::ChannelRows:16;
         (void)count;thumbnailPage=first;
     };
-    auto reset=[&]() {thumbnailLoader.clear();shelves.clear();items.clear();reelFeed=false;continuation.clear();selected=0;images.clear();thumbnailAttempted.clear();thumbnailPage=SIZE_MAX;channelList=playlistList=false;};
+    auto reset=[&]() {thumbnailLoader.clear();carousel.clear();shelves.clear();items.clear();reelFeed=false;continuation.clear();selected=0;images.clear();thumbnailAttempted.clear();thumbnailPage=SIZE_MAX;channelList=playlistList=false;};
     auto receive=[&](const smarttube::Request& request,bool append) {
         auto response=fetch(request,4*1024*1024);smarttube::Json document;std::string error;
         if(response.error.empty() && smarttube::parseJson(response.body,document,error)) {
@@ -246,7 +248,7 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
     };
     auto play=[&](const smarttube::Video& item,bool local,unsigned limit) {
         descriptionJob.cancel();thumbnailLoader.clear();status="Preparing playback...";screen();smarttube::PlayerFeatures features;std::string url,audioUrl,agent,error;bool isLive=false;unsigned duration=0;int sourceHeight=0,sourceFps=0;
-        if(!local) for(unsigned profile=0;profile<smarttube::AnonymousProfiles;++profile) {
+        auto resolvePlayback=[&]() {url.clear();audioUrl.clear();isLive=false;for(unsigned profile=0;profile<smarttube::AnonymousProfiles;++profile) {
             auto request=smarttube::anonymousPlayerRequest(item.id,profile,visitor);auto response=fetch(request,4*1024*1024);smarttube::Json json;
             if(!response.error.empty()) {error=response.error;continue;}if(!smarttube::parseJson(response.body,json,error)) continue;
             features.player(json);auto info=smarttube::playerInfo(json);logLine("APP player profile=%s status=%s formats=%zu reason=%s",smarttube::anonymousProfileName(profile),info.status.c_str(),info.streams.size(),info.reason.c_str());
@@ -268,10 +270,11 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
             if(choice.index>=0) {sourceHeight=info.streams[choice.index].height;sourceFps=info.streams[choice.index].fps;url=info.streams[choice.index].url;agent=request.userAgent;logLine("APP chosen itag=%d height=%d",info.streams[choice.index].itag,info.streams[choice.index].height);break;}
             error=info.reason.empty()?"No direct combined audio/video format available":info.reason;
         }
+        };if(!local) resolvePlayback();
         if(!local && url.empty()) {status=error;logLine("APP playback_unavailable=%s",error.c_str());return;}
         if(!local) {auto watched=item;if(!features.title.empty()) watched.title=features.title;if(!features.channelName.empty()) watched.channel=features.channelName;library.watched(watched);save();}
-        if(local) duration=12000;
-        double startSeconds=0,requestedSeek=-1;std::string pendingNotice;unsigned seekTestStage=0;bool realSponsorPositioned=false;std::vector<probe::MuteRange> sponsorSegments,sponsorMarkers;bool sponsorFetched=false;int retainedCaption=-1,retainedDim=0;std::vector<smarttube::CaptionCue> retainedCues;
+        logLine("APP media_duration_ms=%u live=%d",duration,isLive);if(local) duration=12000;
+        unsigned recoveryCount=0;double startSeconds=0,requestedSeek=-1;std::string pendingNotice;unsigned seekTestStage=0;bool realSponsorPositioned=false;std::vector<probe::MuteRange> sponsorSegments,sponsorMarkers;bool sponsorFetched=false;int retainedCaption=-1,retainedDim=0;std::vector<smarttube::CaptionCue> retainedCues;
         for(;;) {requestedSeek=-1;bool skipToEnd=false;
         unsigned outWidth=library.preferences.native4k?3840:1920,outHeight=library.preferences.native4k?2160:1080;
         if(!video.mode(outWidth,outHeight)) {logLine("APP native_output_failed fallback1080=1");if(!video.mode(1920,1080)) {quit=true;return;}}
@@ -453,11 +456,12 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
             char metrics[160];snprintf(metrics,sizeof(metrics),"Tile avg %.2f ms   Display interval %.2f ms   >25ms %u",frame?video.tileMs/frame:0,video.intervalCount?video.intervalTotal/video.intervalCount:0,video.longIntervals);canvas->text(metrics,24*scale,58*scale,24*scale,0xff9db4cc,video.width-48*scale);
             for(unsigned y=0;y<104*scale;++y) for(unsigned x=0;x<video.width;++x) {auto& p=video.linear[(size_t)y*video.width+x];p=(p&0xff00ff00u)|((p&255u)<<16)|((p>>16)&255u);}
         };
-        probe::CurlStream stream(logLine),audioStream(logLine);AVIOContext* io=nullptr;AVIOContext* audioIo=nullptr;probe::AdaptiveAudio* audioDecoder=nullptr;
+        probe::CurlStream stream(logLine,!strcmp(smokeMode,"--smoke-reconnect")?512*1024:0),audioStream(logLine,!strcmp(smokeMode,"--smoke-reconnect")?32*1024:0);AVIOContext* io=nullptr;AVIOContext* audioIo=nullptr;probe::AdaptiveAudio* audioDecoder=nullptr;
         if(!local && started && stream.start(url,agent,isLive)) {auto* buffer=static_cast<uint8_t*>(av_malloc(65536));if(buffer) {io=avio_alloc_context(buffer,65536,0,&stream,probe::CurlStream::read,nullptr,isLive?nullptr:probe::CurlStream::seek);if(!io) av_free(buffer);}}
         if(!audioUrl.empty() && started && audioStream.start(audioUrl,agent,isLive)) {auto* buffer=static_cast<uint8_t*>(av_malloc(65536));if(buffer) {audioIo=avio_alloc_context(buffer,65536,0,&audioStream,probe::CurlStream::read,nullptr,isLive?nullptr:probe::CurlStream::seek);if(!audioIo) av_free(buffer);}}
         if(audioIo) {audioDecoder=new probe::AdaptiveAudio(audioIo,*pcm,logLine,startSeconds);if(!audioDecoder->start()) pcm->fail();}
-        bool played=started && (local || io) && probe::playAv("/data/homebrew/PStube-PS5-Test/assets/av-1080.webm",presentLocal,&output,*pcm,logLine,io,limit,!audioUrl.empty(),video.width,video.height,true,isLive,&output.positionMs,startSeconds,&playbackMetrics);
+        bool played=started && (local || io) && probe::playAv("/data/homebrew/PStube-PS5-Test/assets/av-1080.webm",presentLocal,&output,*pcm,logLine,io,limit,!audioUrl.empty(),video.width,video.height,true,isLive,&output.positionMs,startSeconds,&playbackMetrics,(int)library.preferences.decoderThreads,(int)library.preferences.scalerThreads);
+        if(played && !local && !isLive && !limit && duration && output.positionMs+3000<duration) {logLine("PLAY premature_eof position_ms=%.0f expected_ms=%u",output.positionMs,duration);played=false;}
         fetchPaint={};metadataJob.cancel();discussionJob.cancel();
         if(audioDecoder) {
             if(!played) {audioDecoder->cancel();audioStream.cancel();sponsorJob.cancel();pcm->finish(false);audioDecoder->join();}
@@ -470,6 +474,10 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
         flips=output.flips;quit=quit || output.quit;status=played?"Playback finished":output.cancelled?"Playback stopped":"Playback ended; see log";
         logLine("APP playback_end local=%d complete=%d cancelled=%d quit=%d next=%d",local,played,output.cancelled,output.quit,output.next);
         if(requestedSeek>=0 && !quit) {retainedCaption=captionIndex;retainedCues=cues;retainedDim=output.pictureDim;startSeconds=requestedSeek;status="Seeking to "+probe::playbackTime(startSeconds)+"...";screen();continue;}
+        if(!played && !limit && !local && !isLive && !quit && !output.cancelled && !output.next && !output.previousVideo && output.positionMs>startSeconds*1000+500 && recoveryCount<2) {
+            ++recoveryCount;retainedCaption=captionIndex;retainedCues=cues;retainedDim=output.pictureDim;startSeconds=std::max(0.0,output.positionMs/1000-0.15);
+            logLine("PLAY recovery attempt=%u resume_seconds=%.3f refresh_urls=1",recoveryCount,startSeconds);status="Reconnecting video at "+probe::playbackTime(startSeconds)+"...";screen();resolvePlayback();if(!url.empty()) continue;
+        }
         if(!local && !smoke && !openChannel.empty()) {reset();shelfLayout=false;browseId=openChannel;browseParams="EgZ2aWRlb3PyBgQKAjoA";query=features.channelName;receive(account->browse(browseId,"",browseParams),false);return;}
         if(!local && !smoke) {
             auto action=smarttube::afterVideo(library.preferences.endMode,!played,selected+1<items.size(),isLive);
@@ -489,7 +497,7 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
         logLine("NETWORK diagnostic_complete saved_preferences_changed=0");quit=true;
     }
     if(!smoke && !menuTest && !networkTest && global) {openMenu(smarttube::Home);sidebar=true;}
-    if(smoke && global) {search("nature");smarttube::Video sample;sample.id=(!strcmp(smokeMode,"--smoke") || !strcmp(smokeMode,"--smoke-captions"))?"jNQXAC9IVRw":"aqz-KE-bpKQ";if(!strncmp(smokeMode,"--smoke-live",12)) {openMenu(smarttube::Live);if(!items.empty()) sample=items.front();}if(!strcmp(smokeMode,"--smoke-sponsor-real")) sample.id="0e3GPea1Tyg";sample.title="PS5 network playback test";play(sample,false,!strcmp(smokeMode,"--smoke-live-long")?3600:600);quit=true;logLine("APP smoke_complete");}
+    if(smoke && global) {search("nature");smarttube::Video sample;sample.id=(!strcmp(smokeMode,"--smoke") || !strcmp(smokeMode,"--smoke-captions"))?"jNQXAC9IVRw":"aqz-KE-bpKQ";if(!strncmp(smokeMode,"--smoke-live",12)) {openMenu(smarttube::Live);if(!items.empty()) sample=items.front();}if(!strcmp(smokeMode,"--smoke-sponsor-real")) sample.id="0e3GPea1Tyg";sample.title="PS5 network playback test";play(sample,false,!strcmp(smokeMode,"--smoke-live-long")?3600:!strcmp(smokeMode,"--smoke-long")?7200:600);quit=true;logLine("APP smoke_complete");}
     auto selectedDescription=[&]() {
         probe::Document response;if(descriptionJob.take(response)) {smarttube::Json json;std::string error;std::string description;if(response.error.empty() && smarttube::parseJson(response.body,json,error)) description=smarttube::videoDescription(json);
             logLine("UI description HTTP=%ld stage=%u ready=%d bytes=%zu",response.status,descriptionStage,!description.empty(),description.size());
@@ -504,6 +512,13 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
         double deadline=probe::benchmarkTime()+25;while(!quit && probe::benchmarkTime()<deadline) {selectedDescription();thumbnails();thumbnailLoader.drain(images,{"0e3GPea1Tyg","dQw4w9WgXc","aqz-KE-bpKQ"},&items);screen();if(thumbnailLoader.brandingCompleted()>=3 && descriptions.count(items.front().id) && probe::benchmarkTime()-marqueeSince>6) break;}
         logLine("BETA dearrow_test requests=%u complete=%u responses=%u replacements=%u titles=%u thumbnails=%u originals_loaded=%zu description_ready=%d",thumbnailLoader.brandingRequests(),thumbnailLoader.brandingCompleted(),thumbnailLoader.brandingSuccess(),thumbnailLoader.brandingUpdates(),thumbnailLoader.brandingTitles(),thumbnailLoader.brandingImages(),images.size(),descriptions.count(items.front().id) && !descriptions[items.front().id].empty());quit=true;
     }
+    if(captureTest && global) {
+        reset();menu=smarttube::Home;query="Home";sidebar=false;shelfLayout=true;receive(account->browse("default","","",false),false);
+        if(!shelves.empty() && shelves[0].count>3) selected=shelves[0].first+2;
+        double deadline=probe::benchmarkTime()+25;unsigned ready=0;
+        while(!quit && probe::benchmarkTime()<deadline) {thumbnails();std::set<std::string> visible;for(const auto& item:visibleItems()) visible.insert(item.id);thumbnailLoader.drain(images,visible,&items);screen();size_t loaded=0;for(const auto& id:visible) if(images.count(id)) ++loaded;if(loaded>=std::min((size_t)8,visible.size()) && !visible.empty()) {if(++ready>15) break;}}
+        if(!quit && !images.empty()) {screen();FILE* f=fopen("/data/pstube-home-v017.ppm","wb");bool saved=f!=nullptr;if(f) {fprintf(f,"P6\n1920 1080\n255\n");unsigned char row[1920*3];for(unsigned y=0;y<1080 && saved;++y) {for(unsigned x=0;x<1920;++x) {uint32_t pixel=video.linear[(size_t)y*1920+x];row[x*3]=pixel&255;row[x*3+1]=(pixel>>8)&255;row[x*3+2]=(pixel>>16)&255;}saved=fwrite(row,1,sizeof(row),f)==sizeof(row);}if(fclose(f)) saved=false;}logLine("BETA console_capture saved=%d thumbnails=%zu guest_feed=1 profile_hidden=1",saved,images.size());}quit=true;
+    }
     if(browseTest && global) {
         for(int destination:{smarttube::Home,smarttube::Music,smarttube::Gaming,smarttube::News,smarttube::Live}) {
             if(quit) break;openMenu(destination);size_t initialRows=shelves.size(),initialItems=items.size();
@@ -513,7 +528,7 @@ void runPrototype(Video& video,Controller& controller,Audio& audio,bool smoke,co
             if(!shelves.empty()) selected=shelves.back().first;for(unsigned n=0;n<40 && !quit;++n) {thumbnails();std::set<std::string> visible;for(const auto& item:visibleItems()) visible.insert(item.id);thumbnailLoader.drain(images,visible,&items);screen();}
         }logLine("BETA browse_paging_complete dearrow_requests=%u responses=%u title_updates=%u",thumbnailLoader.brandingRequests(),thumbnailLoader.brandingSuccess(),thumbnailLoader.brandingUpdates());quit=true;
     }
-    if(menuTest && !browseTest && strcmp(smokeMode,"--dearrow-test") && global) {
+    if(menuTest && !browseTest && !captureTest && strcmp(smokeMode,"--dearrow-test") && global) {
         for(int destination:{smarttube::Home,smarttube::Subscriptions,smarttube::Channels,smarttube::AccountHistory,smarttube::Playlists,smarttube::Liked,smarttube::Music,smarttube::Gaming,smarttube::News,smarttube::Shorts,smarttube::Favorites,smarttube::LocalHistory,smarttube::Live}) {if(quit) break;openMenu(destination);screen();}
         if(!quit) search("nature");
         for(unsigned frame=0;frame<100 && !quit && !items.empty();++frame) {selected=(frame/4)%items.size();thumbnails();std::set<std::string> visible;for(const auto& item:visibleItems()) visible.insert(item.id);thumbnailLoader.drain(images,visible,&items);screen();}

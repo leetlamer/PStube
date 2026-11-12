@@ -21,7 +21,7 @@ class ThumbnailLoader {
             smarttube::Request request;request.url=job.url;request.httpGet=true;request.userAgent="PStube PS5";
             if(!brandingWorker) {
             auto document=performRequest(request,512*1024,8,&cancelled_,connection);
-            auto image=document.error.empty()?smarttube::decodeThumbnail(document.body,384,216):nullptr;
+            auto image=document.error.empty()?smarttube::decodeThumbnail(document.body,640,360):nullptr;
             pthread_mutex_lock(&mutex_);if(job.generation==generation_) {pending_.erase(job.id);if(!image) retry_[job.id]=benchmarkTime()+30;if(results_.size()<32) results_.push_back({job.id,image,job.generation});}pthread_mutex_unlock(&mutex_);
             if(job.needTitle && !cancelled_) {
                 request.url="https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D"+job.id+"&format=json";
@@ -34,7 +34,7 @@ class ThumbnailLoader {
                 auto metadata=performRequest(request,64*1024,6,&cancelled_,connection);smarttube::Json json;std::string error;
                 if(metadata.error.empty() && smarttube::parseJson(metadata.body,json,error)) {++brandingSuccess_;
                     auto branding=dearrowBranding(json);std::shared_ptr<smarttube::Image> replacement;
-                    if(job.thumbnails && branding.timestamp>=0) {request.url="https://dearrow-thumb.ajay.app/api/v1/getThumbnail?videoID="+job.id+"&time="+std::to_string(branding.timestamp);auto thumbnail=performRequest(request,512*1024,6,&cancelled_,connection);if(thumbnail.error.empty()) replacement=smarttube::decodeThumbnail(thumbnail.body,384,216);}
+                    if(job.thumbnails && branding.timestamp>=0) {request.url="https://dearrow-thumb.ajay.app/api/v1/getThumbnail?videoID="+job.id+"&time="+std::to_string(branding.timestamp);auto thumbnail=performRequest(request,512*1024,6,&cancelled_,connection);if(thumbnail.error.empty()) replacement=smarttube::decodeThumbnail(thumbnail.body,640,360);}
                     if(!job.titles) branding.title.clear();
                     if(!branding.title.empty() || replacement) {pthread_mutex_lock(&mutex_);if(job.generation==generation_ && results_.size()<32) {if(replacement) alternatives_[job.id]=request.url;results_.push_back({job.id,replacement,job.generation,branding.title,{},true});}pthread_mutex_unlock(&mutex_);}
                 }
