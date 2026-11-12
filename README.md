@@ -66,3 +66,4 @@ PStube is independent and is not affiliated with Sony or Google.
 Captured on PS5 after the visible video thumbnails finished loading.
 
 ![PStube Gaming section with loaded video thumbnails](pstube-ps5/branding/pstube-gaming-v017.png)
+https://github.com/leetlamer/PStube/blob/main/pstube-ps5/branding/Playback_Controls.jpg
