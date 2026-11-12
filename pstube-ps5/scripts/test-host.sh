@@ -35,3 +35,8 @@ done
 ./build/network-preferences-test
 /usr/bin/clang++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -Isrc tests/content_services_test.cpp src/shared/json.cpp -o build/content-services-test
 ./build/content-services-test
+
+/usr/bin/clang++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -Isrc -I../vendor/pacbrew-v0.40.2/user/homebrew/include -I"$codec_host/include" tests/stream_reconnect_test.cpp src/shared/core.cpp src/shared/json.cpp src/shared/live_hls.cpp -lpthread -lcurl -o build/stream-reconnect-test
+./build/stream-reconnect-test
+/usr/bin/clang++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -Isrc -Ithird_party tests/ui_preview.cpp src/shared/json.cpp src/shared/core.cpp src/shared/app_state.cpp src/shared/app_ui.cpp -o build/ui-preview
+./build/ui-preview
