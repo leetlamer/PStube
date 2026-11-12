@@ -1,0 +1,32 @@
+{
+  "source": "FFmpeg testsrc2; synthetic, not representative of all YouTube content",
+  "workloads": [
+    {
+      "file": "vp9-1080.ivf",
+      "width": 1920,
+      "height": 1080,
+      "fps": 60,
+      "frames": 120,
+      "sha256": "8af1b4df9c460bdc251fe1454aaef8d54ae113a191713f5cb7acfcfd9326e3e3",
+      "bytes": 3577829
+    },
+    {
+      "file": "vp9-1440.ivf",
+      "width": 2560,
+      "height": 1440,
+      "fps": 60,
+      "frames": 120,
+      "sha256": "dcb787c57b2787afaa2bc812776c73c9567b9bd2e7d5f2f4ef219e10b7802946",
+      "bytes": 6493617
+    },
+    {
+      "file": "vp9-2160.ivf",
+      "width": 3840,
+      "height": 2160,
+      "fps": 60,
+      "frames": 120,
+      "sha256": "d308b593df6976d5932f60c6c5eed3833ca6edbfa7c6fd71ab7e55e0bd7aae40",
+      "bytes": 14011085
+    }
+  ]
+}

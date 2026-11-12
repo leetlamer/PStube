@@ -1,0 +1,10 @@
+{
+  "file": "av-1080.webm",
+  "source": "synthetic testsrc2 and 440Hz tone",
+  "duration": 12,
+  "fps": 60,
+  "width": 1920,
+  "height": 1080,
+  "audio": "Opus stereo 48kHz",
+  "sha256": "faa8308f68a4733dbdf73634ee83308bb80be511946441a0df122527625cf98e"
+}

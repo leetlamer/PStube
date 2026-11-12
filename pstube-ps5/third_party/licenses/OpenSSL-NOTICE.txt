@@ -1,0 +1,1 @@
+OpenSSL 3.5.2. Copyright 1995-2025 The OpenSSL Project Authors. All Rights Reserved. Copyright (c) 2002, Oracle and/or its affiliates. Copyright 2005 Nokia. Distributed under Apache-2.0. Source: https://github.com/openssl/openssl/tree/openssl-3.5.2

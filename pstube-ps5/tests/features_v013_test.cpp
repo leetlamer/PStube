@@ -1,0 +1,28 @@
+#include "player_features.h"
+#include <cassert>
+#include <cstdio>
+using namespace smarttube;
+static Json parse(const std::string& text) {Json value;std::string error;assert(parseJson(text,value,error));return value;}
+int main() {
+    auto root=parse(R"({"sections":[{"shelfRenderer":{"title":{"runs":[{"text":"Music"}]},"content":{"items":[{"videoId":"fixture-one","title":{"simpleText":"One"}},{"videoId":"fixture-two","title":{"simpleText":"Two"}}]}}},{"shelfRenderer":{"title":{"simpleText":"News"},"items":[{"videoId":"fixture-three","title":{"simpleText":"Three"}}]}}]})");
+    std::vector<Video> items;std::vector<Shelf> shelves;shelfCatalog(root,items,shelves);assert(shelves.size()==2 && items.size()==3 && shelves[1].first==2);assert(moveShelf(shelves,0,1,0)==1);assert(moveShelf(shelves,1,0,1)==2);assert(moveShelf(shelves,2,0,-1)==1);
+    assert(shelfTitle(parse(R"({"headerRenderer":{"shelfHeaderRenderer":{"title":{"runs":[{"text":"Recommended music"}]}}}})"))=="Recommended music");
+    assert(shelfTitle(parse(R"({"headerRenderer":{"shelfHeaderRenderer":{"avatarLockup":{"avatarLockupRenderer":{"title":{"content":"Gaming highlights"}}}}}})"))=="Gaming highlights");
+    assert(shelfTitle(parse(R"({"items":[{"title":{"simpleText":"A video title"}}]})")).empty());
+    auto first=parse(R"({"sectionListRenderer":{"contents":[{"shelfRenderer":{"title":{"simpleText":"Music"},"items":[{"videoId":"a","title":{"simpleText":"A"}}],"continuations":[{"nextContinuationData":{"continuation":"row-next"}}]}}],"continuations":[{"nextContinuationData":{"continuation":"feed-next"}}]}})");
+    assert(catalogContinuation(first)=="row-next" && feedContinuation(first)=="feed-next");shelfCatalog(first,items,shelves);assert(shelves.size()==1 && shelves[0].continuation=="row-next");
+    auto page=parse(R"({"appendContinuationItemsAction":{"continuationItems":[{"shelfRenderer":{"title":{"simpleText":"News"},"items":[{"videoId":"b","title":{"simpleText":"B"}}]}},{"shelfRenderer":{"title":{"simpleText":"Gaming"},"items":[{"videoId":"c","title":{"simpleText":"C"}}]}},{"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":"feed-last"}}}}]}})");
+    assert(appendShelfPage(page,items,shelves)==2 && items.size()==3 && shelves.size()==3 && shelves[1].first==1 && feedContinuation(page)=="feed-last");assert(appendShelfPage(page,items,shelves)==0);
+    auto rowPage=parse(R"({"horizontalListContinuation":{"items":[{"videoId":"a","title":{"simpleText":"A"}},{"videoId":"d","title":{"simpleText":"D"}},{"videoId":"e","title":{"simpleText":"E"}}]}})");
+    assert(appendShelfVideos(rowPage,0,items,shelves)==2 && shelves[0].count==3 && shelves[1].first==3 && shelves[2].first==4 && items[3].id=="b");assert(appendShelfVideos(rowPage,0,items,shelves)==0);
+    assert(videoDescription(parse(R"({"engagementPanels":[{"expandableVideoDescriptionBodyRenderer":{"descriptionBodyText":{"runs":[{"text":"Full "},{"text":"creator description"}]}}}]})"))=="Full creator description");assert(videoDescription(parse(R"({"videoDetails":{"shortDescription":"Fallback description"}})"))=="Fallback description");
+    PlayerFeatures features;features.player(parse(R"({"videoDetails":{"channelId":"UCfixture","author":"Fixture channel"},"captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[{"name":{"simpleText":"English"},"languageCode":"en","baseUrl":"https://www.youtube.com/api/timedtext?v=fixture"},{"baseUrl":"http://unsafe"}]}}})"));assert(features.channelId=="UCfixture" && features.tracks.size()==1);
+    features.next(parse(R"({"engagementPanelSectionListRenderer":{"targetId":"engagement-panel-comments-section","continuations":[{"nextContinuationData":{"continuation":"comments-token"}}]},"conversationBar":{"liveChatRenderer":{"continuations":[{"reloadContinuationData":{"continuation":"chat-token"}}]}},"buttons":{"likeStatus":"LIKE","subscribeButtonRenderer":{"subscribed":true}}})"));assert(features.commentsToken=="comments-token" && features.chatToken=="chat-token" && features.reaction==1 && features.subscribed);
+    auto cues=captionCues(parse(R"({"events":[{"tStartMs":1000,"dDurationMs":2000,"segs":[{"utf8":"Hello "},{"utf8":"world"}]},{"tStartMs":5000,"dDurationMs":1000,"segs":[{"utf8":"Next"}]}]})"));assert(captionAt(cues,500).empty() && captionAt(cues,1000)=="Hello world" && captionAt(cues,3000).empty() && captionAt(cues,5000)=="Next");
+    auto comments=discussion(parse(R"({"items":[{"commentRenderer":{"authorText":{"simpleText":"Viewer"},"contentText":{"runs":[{"text":"A comment"}]}}}]})"),false);assert(comments.size()==1 && comments[0].text=="A comment");
+    auto chat=discussion(parse(R"({"liveChatTextMessageRenderer":{"authorName":{"simpleText":"Viewer"},"message":{"runs":[{"text":"A chat message"}]}}})"),true);assert(chat.size()==1);
+    auto playlists=editablePlaylists(parse(R"({"playlistAddToOptionRenderer":{"playlistId":"PLfixture","title":{"simpleText":"My playlist"},"containsSelectedVideos":"ALL"}})"));assert(playlists.size()==1 && playlists[0].contains);
+    auto request=featureRequest("like/like","\"target\":{\"videoId\":\"quote\\\"test\"}","Bearer fixture");assert(parse(request.body).get("target") && request.authorization=="Bearer fixture");
+    auto reels=reelVideos(parse(R"({"entries":[{"command":{"reelWatchEndpoint":{"videoId":"jNQXAC9IVRw"}}},{"command":{"reelWatchEndpoint":{"videoId":"jNQXAC9IVRw"}}}]})"));assert(reels.size()==1 && reels[0].badge=="SHORTS");assert(parse(shortsRequest("fixture-sequence").body).string("sequenceParams")=="fixture-sequence");
+    puts("PASS: shelf navigation, playback metadata, captions, comments/chat, playlists and account action JSON");
+}

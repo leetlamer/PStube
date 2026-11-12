@@ -1,0 +1,42 @@
+[
+  {
+    "archive": "reference/archives/ps5-payload-sdk-v0.45.zip",
+    "url": "https://github.com/ps5-payload-dev/sdk/releases/download/v0.45/ps5-payload-sdk.zip",
+    "commit": "a7685ce8e97ce1f8a4f38253a41d54241c9124f1",
+    "sha256": "5fac64093d0e3e69f2584ce7935f24f703f622d9681f1495c85b9f00d1291a2c",
+    "bytes": 8838658
+  },
+  {
+    "archive": "reference/archives/sdk-0.45.zip",
+    "url": "https://github.com/ps5-payload-dev/sdk/archive/refs/tags/v0.45.zip",
+    "commit": "a7685ce8e97ce1f8a4f38253a41d54241c9124f1",
+    "sha256": "e87d7e4578529904c961fe46857b6f1b87d818bb1e80241e315fc566b3475d39",
+    "bytes": 5222717
+  },
+  {
+    "archive": "reference/archives/SDL-release-2.30.x-ps5.zip",
+    "url": "https://github.com/ps5-payload-dev/SDL/archive/refs/heads/release-2.30.x-ps5.zip",
+    "commit": "ee4c47dc0d617b3bc8f35108f9956baf228a1322",
+    "sha256": "5e46e379a698a94b89ed7903759ad5bc345be48b73d2b8f9208fbbd2f3836358",
+    "bytes": 9099435
+  },
+  {
+    "archive": "reference/archives/ffmpeg-7.1.5.tar.xz",
+    "url": "https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.xz",
+    "sha256": "de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f",
+    "usage": "PS5-native VP9 decoder; LGPL 2.1-or-later; see build/codecs/manifest.json"
+  },
+  {
+    "release": "v0.40.2",
+    "url": "https://github.com/ps5-payload-dev/pacbrew-repo/releases/download/v0.40.2/ps5-payload-dev.tar.gz",
+    "sha256": "a85f65de418a8e6a898c6c3e3c870d50fff7618a200e4dd59ea9692af6ecec4d",
+    "libraries": {
+      "curl": "c29815b2e111e12c68975626b7d53418533d0718b18ee229943081068c11527d",
+      "ssl": "db58e5bb95ee7dba9e83d192dbd3258b976956c05bb1876e1f7a0763d512807e",
+      "crypto": "e8fe42a8159e30d4c8a2ab1be74ee10b119c3f547265e3cc872bdaecda620944",
+      "psl": "8ae4064de68c29f74095dec10c3db61ee85fd0b33c4d75be197c0adf59ea4220",
+      "zstd": "d84ca33e966555f8c35940c097c491773b58a69af8438966e98ecff1cd11435c",
+      "z": "6838f30dd02e47e3fb46ed64b83f38a6067378428616edef38dee76935868d69"
+    }
+  }
+]

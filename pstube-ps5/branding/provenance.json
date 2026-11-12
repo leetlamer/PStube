@@ -1,0 +1,11 @@
+{
+  "source": "branding/GlossyBluePStubePlayButton.png",
+  "sha256": "0c918e773f25761c018d3bed2ed94a10ef592c5501904642fb63ab023da1ff3d",
+  "dimensions": [
+    1254,
+    1254
+  ],
+  "png_bit_depth": 8,
+  "png_color_type": 6,
+  "usage": "User supplied PStube icon copied unchanged to sce_sys/icon0.png"
+}

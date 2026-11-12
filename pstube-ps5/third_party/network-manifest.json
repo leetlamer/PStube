@@ -1,0 +1,13 @@
+{
+  "release": "v0.40.2",
+  "url": "https://github.com/ps5-payload-dev/pacbrew-repo/releases/download/v0.40.2/ps5-payload-dev.tar.gz",
+  "sha256": "a85f65de418a8e6a898c6c3e3c870d50fff7618a200e4dd59ea9692af6ecec4d",
+  "libraries": {
+    "curl": "c29815b2e111e12c68975626b7d53418533d0718b18ee229943081068c11527d",
+    "ssl": "db58e5bb95ee7dba9e83d192dbd3258b976956c05bb1876e1f7a0763d512807e",
+    "crypto": "e8fe42a8159e30d4c8a2ab1be74ee10b119c3f547265e3cc872bdaecda620944",
+    "psl": "8ae4064de68c29f74095dec10c3db61ee85fd0b33c4d75be197c0adf59ea4220",
+    "zstd": "d84ca33e966555f8c35940c097c491773b58a69af8438966e98ecff1cd11435c",
+    "z": "6838f30dd02e47e3fb46ed64b83f38a6067378428616edef38dee76935868d69"
+  }
+}

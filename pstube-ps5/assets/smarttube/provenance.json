@@ -1,0 +1,156 @@
+{
+  "upstream": "https://github.com/yuliskov/SmartTube",
+  "revision": "a945135eee6387cd6549b87604ad673944c06b5d",
+  "files": [
+    {
+      "file": "icon_home.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_home.png",
+      "sha256": "13e78e877d45a7dba82a51cce85c048327561051b22fb411087d936bb9a228b9",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_subscriptions.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_subscriptions.png",
+      "sha256": "14e766d0953db292c6463fc71024c36c9b063f0b60f2ff7f11b1d11bb62787b6",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_channels.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_channels.png",
+      "sha256": "c1a63fb190aa90cef756571a56dcc92e974aded7bd7ebcf74e1045b484e47b41",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_history.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_history.png",
+      "sha256": "72f608a43ef549b917f2e9c46c4cbc6ecd68059d9ac211f08376c01dd1dc768a",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_playlist.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_playlist.png",
+      "sha256": "dae0db85a82209269cfa5681637862796258c4e1058c85392e3c3f70eb5c98a8",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_music.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_music.png",
+      "sha256": "a59c0d346f35b84cd566c9aefcf82067ed4170977bad5beaeaedd91a8e37ca04",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_gaming.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_gaming.png",
+      "sha256": "ed4978b8c78faedaa778bbdb09ecb8a9c3f6bb134235c20948787b9a5b98b648",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_live.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_live.png",
+      "sha256": "b70b40a884e20393096f41d9ec4f14ae7fc793f4c85d885b74323513683016b1",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_news.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_news.png",
+      "sha256": "153513fd38dde57f1299ba8db24fcee61f7056aee0c912fbda965700d20d65ce",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_shorts.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_shorts.png",
+      "sha256": "01ebfaf3d6cf915c18f58c50d807ae3b02e1b7e94c4c7250348295f11cae0304",
+      "license": "MIT"
+    },
+    {
+      "file": "icon_settings.png",
+      "source": "common/src/main/res/drawable-nodpi/icon_settings.png",
+      "sha256": "9889e2f8fa76977241223c5d53f3984651953ab86f6c837e94de00ce951ab977",
+      "license": "MIT"
+    },
+    {
+      "file": "action_search.png",
+      "source": "common/src/main/res/drawable-nodpi/action_search.png",
+      "sha256": "aced82c3ed2587932aed960b319b1d7fe0fa43e14bbb2c88754e98053d003efd",
+      "license": "MIT"
+    },
+    {
+      "file": "action_channel.png",
+      "source": "common/src/main/res/drawable-nodpi/action_channel.png",
+      "sha256": "251e0eb98e147d1a779ad6fcee34f269ad4df42a58493f7413bc5c58f2da1af7",
+      "license": "MIT"
+    },
+    {
+      "file": "action_chat.png",
+      "source": "common/src/main/res/drawable-nodpi/action_chat.png",
+      "sha256": "30d54c619fa59bd8e97be20cf6ca6f0caef91338be3cb9e90a387432c3ac3f84",
+      "license": "MIT"
+    },
+    {
+      "file": "action_playlist_add.png",
+      "source": "common/src/main/res/drawable-nodpi/action_playlist_add.png",
+      "sha256": "631ca906de435f09253230f9a72f8a1b7dfc8c95b74dfce9510e3088380e90c3",
+      "license": "MIT"
+    },
+    {
+      "file": "action_subscribe.png",
+      "source": "common/src/main/res/drawable-nodpi/action_subscribe.png",
+      "sha256": "a8bb9dde9381a3734510aa42770788188a64654577018d69ace0d2e7366ba6bf",
+      "license": "MIT"
+    },
+    {
+      "file": "action_video_stats.png",
+      "source": "common/src/main/res/drawable-nodpi/action_video_stats.png",
+      "sha256": "3a52901b2f5eba288484603db925681c2e8f8e702d53a57c6b44313739e966fb",
+      "license": "MIT"
+    },
+    {
+      "file": "action_screen_off.png",
+      "source": "common/src/main/res/drawable-nodpi/action_screen_off.png",
+      "sha256": "441f42062797fe3340e8f5a6604e2492886d5465e612bd15acba4383c7f8a552",
+      "license": "MIT"
+    },
+    {
+      "file": "settings_dearrow.png",
+      "source": "common/src/main/res/drawable-nodpi/settings_dearrow.png",
+      "sha256": "801e05196549248aef6c72621dbbb76fc35fbb65b4fd0474afe9987014ab17a6",
+      "license": "MIT"
+    },
+    {
+      "file": "lb_ic_play.png",
+      "source": "leanback-1.0.0/src/main/res/drawable-xhdpi-v4/lb_ic_play.png",
+      "sha256": "7278aa9834adf3ea07c47e945af7701122d5c20280bfb96f9f69e8ec9b76246f",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lb_ic_pause.png",
+      "source": "leanback-1.0.0/src/main/res/drawable-xhdpi-v4/lb_ic_pause.png",
+      "sha256": "9f06766454d76941212985e37cbcb69d440bd1f5962c62fc5368aa708c929907",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lb_ic_skip_next.png",
+      "source": "leanback-1.0.0/src/main/res/drawable-xhdpi-v4/lb_ic_skip_next.png",
+      "sha256": "779fd352af02c98d02c16efecbddca3eaaf7c841ebe7114008984f1e055d815b",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lb_ic_skip_previous.png",
+      "source": "leanback-1.0.0/src/main/res/drawable-xhdpi-v4/lb_ic_skip_previous.png",
+      "sha256": "3c2a6306e838aaa7e80815b6762fe79737f6690c4e747c94a413403fe0ccdb66",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lb_ic_thumb_up.png",
+      "source": "leanback-1.0.0/src/main/res/drawable-xhdpi-v4/lb_ic_thumb_up.png",
+      "sha256": "3ccb5a3ec8da19b4c360449487dad0d6efe08bebe5f9010d5d5525f3671464f7",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lb_ic_thumb_down.png",
+      "source": "leanback-1.0.0/src/main/res/drawable-xhdpi-v4/lb_ic_thumb_down.png",
+      "sha256": "7f970b179d6b77d0f93288b92782cac6e88ed56992e0e7dba3fd82ec3acb87bb",
+      "license": "Apache-2.0"
+    }
+  ]
+}
