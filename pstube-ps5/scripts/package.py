@@ -26,9 +26,15 @@ with zipfile.ZipFile(DIST/(NAME+'.zip'),'w',zipfile.ZIP_DEFLATED) as z:
  for p in sorted(stage.rglob('*')):
   if p.is_file():z.write(p,p.relative_to(stage))
 # App objects + static libraries permit relinking; exact source and SDK included.
+public_docs={'BETA_FEATURE_MATRIX.md','BETA_V013.md','BETA_V014.md','BETA_V016.md','BETA_V016_TEST_RESULTS.md','BETA_V017.md','BETA_V017_TEST_RESULTS.md'}
+def source_filter(item):
+ parts=Path(item.name).parts
+ if '__pycache__' in parts or Path(item.name).name in ['CURRENT_WORK_CHECKPOINT.md','.DS_Store']:return None
+ if len(parts)>2 and parts[:2]==('pstube-ps5','docs') and parts[-1] not in public_docs:return None
+ return item
 with tarfile.open(DIST/(NAME+'-source-relink.tar.gz'),'w:gz') as t:
  for name in ['src','scripts','tests','docs','third_party','README.md','LICENSE','THIRD_PARTY.md','assets','sce_sys','branding']:
-  t.add(APP/name,arcname='pstube-ps5/'+name,filter=lambda i:None if '__pycache__' in i.name or Path(i.name).name in ['CURRENT_WORK_CHECKPOINT.md','.DS_Store'] else i)
+  t.add(APP/name,arcname='pstube-ps5/'+name,filter=source_filter)
  for name in ['commands.json','build-manifest.json','elf-verification.json','v017-host-tests.log','v017-build.log','PStube-PS5-Test-v0.17.o','PStube-PS5-Platform-v0.17.o','json.cpp.o','core.cpp.o','app_state.cpp.o','app_ui.cpp.o','oauth.cpp.o','tv_oauth.cpp.o','live_hls.cpp.o','console_curl.o','codecs/install','codecs/manifest.json','codecs/configure-command.json','codecs/ffmpeg/config.h','codecs/ffmpeg/config_components.h','codecs/ffmpeg/ffbuild/config.mak']:
   t.add(APP/'build'/name,arcname='pstube-ps5/build/'+name)
  t.add(APP/'test-results/beta-v017-evidence.json',arcname='pstube-ps5/test-results/beta-v017-evidence.json')
