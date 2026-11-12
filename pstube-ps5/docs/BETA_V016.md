@@ -1,7 +1,7 @@
 # PStube PS5 beta 0.16
 
 This beta combines the pending 0.15 pagination/decoder-info fixes with larger cards,
-SmartTube icons, scrolling descriptions and improved DeArrow integration. Install
+navigation/playback icons, scrolling descriptions and improved DeArrow integration. Install
 the complete PStube-PS5-Test folder in /data/homebrew/ and launch eboot.elf through
 OnionHEN/websrv in foreground. Existing Google accounts and preferences stay in /data.
 The owner's glossy blue PStube application icon remains unchanged.
@@ -24,13 +24,13 @@ metadata leaves the normal status text visible. No Google account is needed to r
 public descriptions. Long descriptions are bounded at 32 KiB; line breaks become spaces
 in the ticker. Channel/playlist lists do not issue video-description requests.
 
-## Imported SmartTube assets
+## Navigation and playback icons
 
-Twenty-five navigation/playback icons are copied unchanged from the pinned SmartTube
-source and embedded in the executable. They include Home, Search, Subscriptions,
-Channels, Music, Gaming, Live, News, Shorts and common playback actions. PNG originals,
-SHA256 provenance and applicable MIT/Apache2.0 licenses are supplied under
-assets/smarttube/. PStube keeps its blue theme and its own application branding.
+Twenty-five navigation/playback icons are embedded in the executable. They cover
+Home, Search, Subscriptions, Channels, Music, Gaming, Live, News, Shorts and common
+playback actions. Original assets, SHA256 provenance and applicable licences remain
+in the asset distribution and third-party notices. PStube uses its blue theme and
+its own application branding.
 No Android UI runtime or plugin binary is required.
 
 ## DeArrow
@@ -39,7 +39,7 @@ L2 / Settings → DeArrow cycles **Off**, **Titles + thumbnails**, **Titles only
 **Thumbnails only**; LEFT reverses the cycle. Choices persist and apply to newly
 loaded cards; reopen a section after changing the choice. Default is Off.
 
-Like SmartTube, PStube requests community alternatives for a video, accepts trusted
+PStube requests community alternatives for a video, accepts trusted
 non-original suggestions and preserves originals when no suitable data is returned.
 Two workers load original images; a separate worker handles optional DeArrow API
 and image requests so alternatives do not occupy the original-image workers. Navigation

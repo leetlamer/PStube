@@ -53,11 +53,10 @@ See BETA_V013_TEST_RESULTS.md for console results and exact release hashes. Auto
 checks do not alter account ratings, subscriptions or playlist contents. Owner testing
 is still needed for those writes, subjective audio sync and visual controller layout.
 Seeking/resume, automatic SponsorBlock skipping, comment posting, reply trees/moderation, live-chat replay
-and full SmartTube parity remain pending. Live buffering and high-resolution software
+and additional playback features remain pending. Live buffering and high-resolution software
 performance remain source-dependent; native4K output is experimental and opt-in.
 
-Source design reference: SmartTube32.72 commit a945135eee6387cd6549b87604ad673944c06b5d,
-MediaServiceCore db543d4d5d639cbf3084e3870b0dac6e4e2524a1, retrieved2026-11-07.
+Dependency and asset provenance is retained in the third-party notices.
 No Android runtime or proprietary decoder libraries are required.
 
 ## Network settings
@@ -77,8 +76,7 @@ Cloudflare passed console tests; a user-provided proxy still needs owner testing
 Frame timestamps remain authoritative. Missing timestamps now advance from the last
 video timestamp using the stream's detected frame rate, preserving fractional rates,
 instead of assuming 60fps. This is automatic. It does not switch the TV's HDMI refresh
-mode: SmartTube uses Android display APIs for that function and no verified PS5
-counterpart is implemented. A 24/25/30fps source on a 60Hz display can still show cadence
+mode: no verified PS5 display-refresh switching implementation is included. A 24/25/30fps source on a 60Hz display can still show cadence
 judder. A missing-timestamp fix cannot overcome a decoder/scaler throughput limit.
 
 SponsorBlock and DeArrow are Off by default; enable them in the playback settings.

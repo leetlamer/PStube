@@ -6,7 +6,7 @@
 | Thumbnails | Two image workers plus separate DeArrow worker, bounded cache, larger previews | UBSan slow-branding concurrency checks; rendered UI checked |
 | Selected description | Async creator metadata, clipped UTF8 right-to-left marquee | Console description1171bytes; host timing/clipping checks |
 | Playback information | Actual source dimensions, fractional FPS, codec and software threads | Host actual decoder metrics; console regression |
-| SmartTube icons | 25 embedded originals with provenance/licenses | Console imported_icons=25; host/render checked |
+| Navigation/playback icons | 25 embedded originals with provenance/licenses | Console imported_icons=25; host/render checked |
 | Shorts | TV subscriptions shelf, Web reel fallback | Console signed-in shelf returned 15 Shorts |
 | Google accounts and libraries | QR login, five slots/default/guest, subscriptions/history/playlists/channels | Owner login; console authorized browse feeds |
 | Playback controls | Pause/previous/next/end mode/settings/stats; Like/Dislike/subscribe/add playlist/channel | Navigation and read-only endpoint checks; account writes need owner testing |
@@ -21,5 +21,5 @@
 | Resume after restart, live DVR | Pending | VOD seeking implemented; persistence/live timeline work remains |
 | Hardware/GPU decode, HDMI auto refresh | Not implemented | No claim of hardware acceleration |
 
-This beta is a milestone toward SmartTube functionality, not full parity. See the
+This beta is a development milestone with the feature coverage listed above. See the
 release guide and test results for limitations and exact candidate identities.
