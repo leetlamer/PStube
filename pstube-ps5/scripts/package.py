@@ -16,6 +16,7 @@ for guide in ['BETA_V017_TEST_RESULTS.md','BETA_FEATURE_MATRIX.md','BETA_V014.md
 shutil.copy2(APP/'build/codecs/ffmpeg-7.1.5/COPYING.LGPLv2.1',stage/'FFmpeg-LGPL-2.1.txt')
 shutil.copy2(DIST/'PStube-PS5-Platform-v0.17.elf',stage/'PStube-PS5-Platform-v0.17.elf')
 shutil.copytree(APP/'third_party/licenses',stage/'licenses',dirs_exist_ok=True)
+shutil.copy2(APP/'THIRD_PARTY.md',stage/'THIRD_PARTY.md')
 shutil.copy2(APP/'assets/OFL.txt',stage/'licenses/Gontserrat-OFL.txt')
 shutil.copy2(APP/'assets/stb-LICENSE.txt',stage/'licenses/stb.txt')
 shutil.copy2(APP/'third_party/network-manifest.json',stage/'network-manifest.json')
