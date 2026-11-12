@@ -2,6 +2,7 @@
 #include "app_state.h"
 #include "renderer.h"
 #include "../catalog_shelves.h"
+#include "../carousel.h"
 #include <map>
 #include <memory>
 namespace smarttube {
@@ -11,7 +12,10 @@ class Canvas {
 public:
     Canvas();~Canvas();
     bool loadFont(const char* path);
-    void surface(cube::Surface value) {surface_=value;}
+    void surface(cube::Surface value) {surface_=value;clip_={0,0,value.width,value.height};}
+    void clip(Rect value) {clip_=value;}
+    void roundedRect(Rect view,int radius,uint32_t color);
+    void roundImageTop(const Image& value,Rect view,int radius,uint32_t outside);
     void rect(int x,int y,int width,int height,uint32_t color);
     void text(const std::string& value,int x,int y,int size,uint32_t color,int width=1800,int lines=1);
     void image(const Image& value,Rect view);
@@ -24,7 +28,7 @@ private:
     friend void drawPlayer(Canvas&,const Video&,const Image&,bool,bool,bool,uint64_t,unsigned,int,int,bool,bool,bool,EndMode);
     friend void drawPlaybackDebug(Canvas&,const std::vector<std::string>&);
     struct Impl;Impl* impl_;
-    cube::Surface surface_{};
+    cube::Surface surface_{};Rect clip_{0,0,8192,8192};
 };
 enum Menu {Home=0,Search,Subscriptions,Channels,AccountHistory,Playlists,Liked,Music,Gaming,Live,News,Shorts,Favorites,LocalHistory,Settings};
 constexpr int MenuCount=15;
@@ -37,7 +41,7 @@ struct BrowseView {
     const Library* library=nullptr;
     size_t selected=0;
     bool busy=false,linked=false,channelList=false;
-    std::vector<Shelf> shelves;
+    std::vector<Shelf> shelves;std::vector<double> shelfOffsets;
     std::string accountName,description;double selectedSeconds=0;
     std::shared_ptr<Image> accountImage;
 };

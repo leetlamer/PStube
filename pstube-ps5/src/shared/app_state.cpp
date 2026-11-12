@@ -45,6 +45,7 @@ bool Library::load(const char* path) {
     next.preferences.softwareCodecs=currentDefaults?document.integer("softwareCodecs",1)==1:true;
     next.preferences.preferAv1=currentDefaults && document.integer("preferAv1",0)==1;
     next.preferences.scalerThreads=currentDefaults && document.integer("scalerThreads",2)==1?1:2;
+    unsigned workers=(unsigned)document.integer("ps5DecoderThreads",8);next.preferences.decoderThreads=workers==6 || workers==10?workers:8;
     next.preferences.maxFps=document.integer("fpsDefaults",0)>=53 && document.integer("maxFps",60)==30?30:60;
     next.preferences.fastStart=false; // Migrate v0.17: native demuxer rejected the fragmented layout.
     const int end=document.integer("endMode",0);next.preferences.endMode=end>=0 && end<=2?static_cast<EndMode>(end):EndMode::AutoNext;
@@ -55,7 +56,7 @@ bool Library::load(const char* path) {
 bool Library::save(const char* path) const {
     std::string bytes="{\"playbackDefaults\":52,\"fpsDefaults\":53,\"scalerThreads\":"+std::to_string(preferences.scalerThreads==1?1:2)+",\"endMode\":"+std::to_string(static_cast<int>(preferences.endMode))+",\"preferAv1\":"+std::to_string(preferences.preferAv1?1:0)+",\"audioLanguage\":"+quoteJson(preferences.audioLanguage)+",\"softwareCodecs\":"+std::to_string(preferences.softwareCodecs?1:0)+",\"maxFps\":"+std::to_string(preferences.maxFps)+",\"fastStart\":"+std::to_string(preferences.fastStart?1:0)+",\"playbackMode\":14,\"height\":"+std::to_string(defaultQuality(preferences.height))+",\"seconds\":"+std::to_string(preferences.seconds)+",\"autoplay\":"+(preferences.endMode==EndMode::AutoNext?"1":"0");
     bytes+=",\"ps5SponsorSkip\":"+std::to_string(preferences.sponsorMute?1:0)+",\"ps5SponsorCategories\":"+std::to_string(preferences.sponsorCategories)+",\"ps5SponsorMinimum\":"+std::to_string(preferences.sponsorMinimum)+",\"ps5SponsorNotices\":"+std::to_string(preferences.sponsorNotices?1:0)+",\"ps5DeArrow\":"+std::to_string(preferences.dearrow?1:0)+",\"ps5DeArrowTitles\":"+std::to_string(preferences.dearrowTitles?1:0)+",\"ps5DeArrowThumbnails\":"+std::to_string(preferences.dearrowThumbnails?1:0);
-    bytes+=",\"ps5Native4k\":"+std::to_string(preferences.native4k?1:0)+",\"ps5Debug\":"+std::to_string(preferences.debugMetrics?1:0);
+    bytes+=",\"ps5DecoderThreads\":"+std::to_string(preferences.decoderThreads)+",\"ps5Native4k\":"+std::to_string(preferences.native4k?1:0)+",\"ps5Debug\":"+std::to_string(preferences.debugMetrics?1:0);
     for(const auto& item:{std::make_pair("favorites",&favorites),std::make_pair("history",&history)}) {
         bytes+=",\""+std::string(item.first)+"\":[";bool first=true;
         for(const auto& video:*item.second) {if(!first) bytes+=",";first=false;bytes+=videoJson(video);}bytes+="]";

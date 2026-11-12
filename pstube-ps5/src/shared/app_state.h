@@ -16,7 +16,7 @@ inline EndAction afterVideo(EndMode mode,bool failed,bool hasNext,bool live=fals
 struct Preferences {
     int height=1080;
     int maxFps=60;
-    unsigned decoderThreads=4,scalerThreads=2; // Per-video experiments; baseline preserved.
+    unsigned decoderThreads=8,scalerThreads=2; // Keep network/audio/UI workers outside the video decoder pool.
     bool softwareCodecs=true,preferAv1=false,autoRecovery=true;std::string audioLanguage="original";
     unsigned seconds=0; // zero selects the complete indexed video
     EndMode endMode=EndMode::AutoNext;
@@ -53,7 +53,7 @@ struct Keyboard {
     bool select(); // True submits a nonempty query.
     void erase();
 };
-constexpr int ResultColumns=4,ResultRows=3,ChannelRows=6;
+constexpr int ResultColumns=3,ResultRows=2,ChannelRows=6;
 inline size_t resultFirst(size_t selected,bool channels=false) {if(channels) return selected>=ChannelRows?selected-ChannelRows+1:0;const size_t row=selected/ResultColumns;return row>=ResultRows?(row-ResultRows+1)*ResultColumns:0;}
 constexpr int QualityCount=8;
 int qualityHeight(int index);

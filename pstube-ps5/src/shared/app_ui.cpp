@@ -2,6 +2,7 @@
 #include "../generated/smarttube_icons.h"
 #include "login_qr.h"
 #include <algorithm>
+#include <cmath>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -59,9 +60,17 @@ bool Canvas::loadFont(const char* path) {
     impl_->loaded=valid && !impl_->bytes.empty() && stbtt_InitFont(&impl_->font,impl_->bytes.data(),0);return impl_->loaded;
 }
 void Canvas::rect(int x,int y,int w,int h,uint32_t color) {
-    const int right=std::min(surface_.width,x+w),bottom=std::min(surface_.height,y+h);
-    if(right<=std::max(0,x) || bottom<=std::max(0,y)) return;
-    for(int row=std::max(0,y);row<bottom;++row) std::fill(surface_.pixels+(size_t)row*surface_.pitch+std::max(0,x),surface_.pixels+(size_t)row*surface_.pitch+right,color);
+    const int right=std::min(std::min(surface_.width,clip_.x+clip_.w),x+w),bottom=std::min(std::min(surface_.height,clip_.y+clip_.h),y+h);
+    if(right<=std::max(std::max(0,clip_.x),x) || bottom<=std::max(std::max(0,clip_.y),y)) return;
+    for(int row=std::max(std::max(0,clip_.y),y);row<bottom;++row) std::fill(surface_.pixels+(size_t)row*surface_.pitch+std::max(std::max(0,clip_.x),x),surface_.pixels+(size_t)row*surface_.pitch+right,color);
+}
+void Canvas::roundedRect(Rect v,int radius,uint32_t color) {
+    int r=std::max(0,std::min(radius,std::min(v.w,v.h)/2));
+    for(int y=0;y<v.h;++y) {int d=y<r?r-1-y:y>=v.h-r?y-(v.h-r):0;int inset=d?(int)std::ceil(r-std::sqrt((double)r*r-(double)d*d)):0;rect(v.x+inset,v.y+y,v.w-2*inset,1,color);}
+}
+void Canvas::roundImageTop(const Image& value,Rect v,int radius,uint32_t outside) {
+    image(value,v);int r=std::max(0,std::min(radius,std::min(v.w,v.h)/2));
+    for(int y=0;y<r;++y) {int d=r-1-y;int inset=(int)std::ceil(r-std::sqrt((double)r*r-(double)d*d));rect(v.x,v.y+y,inset,1,outside);rect(v.x+v.w-inset,v.y+y,inset,1,outside);}
 }
 void Canvas::text(const std::string& value,int x,int y,int size,uint32_t color,int width,int lines) {
     if(!impl_->loaded || size<8 || size>80 || lines<1) return;
@@ -72,7 +81,7 @@ void Canvas::text(const std::string& value,int x,int y,int size,uint32_t color,i
         const int top=y+size+glyph.top;
         for(int row=0;row<glyph.height;++row) for(int col=0;col<glyph.width;++col) {
             const int xx=x+glyph.left+col,yy=top+row;
-            if(xx<start || xx>=right || xx<0 || xx>=surface_.width || yy<0 || yy>=surface_.height) continue;
+            if(xx<start || xx>=right || xx<std::max(0,clip_.x) || xx>=std::min(surface_.width,clip_.x+clip_.w) || yy<std::max(0,clip_.y) || yy>=std::min(surface_.height,clip_.y+clip_.h)) continue;
             const auto a=glyph.alpha[(size_t)row*glyph.width+col];if(!a) continue;
             auto& pixel=surface_.pixels[(size_t)yy*surface_.pitch+xx];pixel=blend(pixel,color,a);
         }
@@ -98,7 +107,7 @@ void Canvas::marquee(const std::string& value,int x,int y,int size,uint32_t colo
     double delay=1.2,travel=(total+width+90)/52.0;double phase=fmod(std::max(0.0,seconds),delay+travel);int shift=phase<=delay?0:(int)((phase-delay)*52);
     auto begin=std::upper_bound(run.positions.begin(),run.positions.end(),shift);size_t first=begin==run.positions.begin()?0:(size_t)(begin-run.positions.begin()-1);
     for(size_t i=first;i<run.codepoints.size();++i) {int cursor=x+run.positions[i]-shift;auto& glyph=impl_->glyph(run.codepoints[i],size);if(cursor>=x+width) break;int top=y+size+glyph.top;
-        if(cursor+glyph.advance>=x) for(int yy=0;yy<glyph.height;++yy) for(int xx=0;xx<glyph.width;++xx) {int px=cursor+glyph.left+xx,py=top+yy;if(px<x || px>=x+width || px<0 || px>=surface_.width || py<0 || py>=surface_.height) continue;auto a=glyph.alpha[(size_t)yy*glyph.width+xx];if(a) {auto& dst=surface_.pixels[(size_t)py*surface_.pitch+px];dst=blend(dst,color,a);}}
+        if(cursor+glyph.advance>=x) for(int yy=0;yy<glyph.height;++yy) for(int xx=0;xx<glyph.width;++xx) {int px=cursor+glyph.left+xx,py=top+yy;if(px<x || px>=x+width || px<std::max(0,clip_.x) || px>=std::min(surface_.width,clip_.x+clip_.w) || py<std::max(0,clip_.y) || py>=std::min(surface_.height,clip_.y+clip_.h)) continue;auto a=glyph.alpha[(size_t)yy*glyph.width+xx];if(a) {auto& dst=surface_.pixels[(size_t)py*surface_.pitch+px];dst=blend(dst,color,a);}}
     }
 }
 
@@ -106,8 +115,8 @@ void Canvas::image(const Image& value,Rect view) {
     if(value.width<1 || value.height<1 || value.pixels.size()!=(size_t)value.width*value.height) {rect(view.x,view.y,view.w,view.h,0xff000000);return;}
     const auto fit=fitVideo(value.width,value.height,view);
     if(fit.x!=view.x || fit.y!=view.y || fit.w!=view.w || fit.h!=view.h) rect(view.x,view.y,view.w,view.h,0xff000000);
-    const int left=std::max(0,fit.x),right=std::min(surface_.width,fit.x+fit.w);
-    const int top=std::max(0,fit.y),bottom=std::min(surface_.height,fit.y+fit.h);
+    const int left=std::max(std::max(0,clip_.x),fit.x),right=std::min(std::min(surface_.width,clip_.x+clip_.w),fit.x+fit.w);
+    const int top=std::max(std::max(0,clip_.y),fit.y),bottom=std::min(std::min(surface_.height,clip_.y+clip_.h),fit.y+fit.h);
     if(left>=right || top>=bottom || right-left>1920) return;
     // Full-width unscaled playback surfaces are contiguous. Copy once instead
     // of issuing a copy and row-address calculation for every scanline.
@@ -164,7 +173,7 @@ void drawBrowse(Canvas& c,const BrowseView& v) {
         const char* menuIcons[]={"icon_home","action_search","icon_subscriptions","icon_channels","icon_history","icon_playlist","icon_playlist","icon_music","icon_gaming","icon_live","icon_news","icon_shorts","icon_playlist","icon_history","icon_settings"};c.icon(menuIcons[i],{47,y+8,26,26},v.menu==i && v.sidebar?0xff161616:white);
         c.text(menuLabel(i),84,y+4,24,v.menu==i && v.sidebar?0xff161616:(v.menu==i?white:muted),187);
     }
-    c.text("PStube PS5 · Beta 0.16",48,970,19,muted,225);c.text("OPTIONS  Exit",48,1006,19,muted,225);
+    c.text("PStube PS5 · Beta 0.17",48,970,19,muted,225);c.text("OPTIONS  Exit",48,1006,19,muted,225);
     c.text(v.heading,354,65,42,white,1100);c.text(v.subtitle,356,123,23,muted,1200);
     if(v.linked) {
         c.text((v.accountName.empty()?"YouTube account":v.accountName)+" logged in",1320,64,24,white,490,2);
@@ -181,35 +190,35 @@ void drawBrowse(Canvas& c,const BrowseView& v) {
             c.text("Open channel videos",568,y+66,20,muted,950);c.text(">",1757,y+29,36,focused?red:white,58);
         }
     } else if(!v.shelves.empty()) {
-        size_t active=selectedShelf(v.shelves,v.selected),top=active>=2?active-2:0;
-        for(size_t r=top;r<v.shelves.size() && r<top+3;++r) {
-            const auto& shelf=v.shelves[r];int y=170+(int)(r-top)*250;c.text(shelf.title,354,y,26,white,1330);
-            size_t cursor=r==active?v.selected-shelf.first:shelf.cursor,first=cursor/4*4;
-            for(size_t col=0;col<4 && first+col<shelf.count;++col) {
-                size_t index=shelf.first+first+col;if(index>=v.videos.size()) break;const auto& item=v.videos[index];int x=354+col*376;
-                bool focused=index==v.selected && !v.sidebar;c.rect(x-4,y+26,373,224,focused?red:0xff16334e);
-                auto image=v.thumbnails.find(item.id);if(image!=v.thumbnails.end()) c.image(*image->second,{x,y+30,365,180});else {c.rect(x,y+30,365,180,0xff204968);c.playIcon(x+168,y+110,28,muted);}
-                if(focused) c.marquee(item.title,x+7,y+212,19,white,350,v.selectedSeconds);else c.text(item.title,x+7,y+212,19,white,350);c.text(item.badge.empty()?item.channel:item.badge+" · "+item.channel,x+7,y+235,15,muted,350);
+        size_t active=selectedShelf(v.shelves,v.selected),top=active?active-1:0;
+        for(size_t r=top;r<v.shelves.size() && r<top+2;++r) {
+            const auto& shelf=v.shelves[r];int y=170+(int)(r-top)*370;c.text(shelf.title,354,y,26,white,1330);
+            size_t cursor=r==active?v.selected-shelf.first:shelf.cursor;
+            double offset=r<v.shelfOffsets.size()?v.shelfOffsets[r]:carouselTarget(cursor,shelf.count);
+            int first=std::max(0,(int)std::floor(offset)-1),last=std::min((int)shelf.count,(int)std::floor(offset)+5);
+            c.clip({320,y+30,1580,334});
+            for(int col=first;col<last;++col) {
+                size_t index=shelf.first+(size_t)col;if(index>=v.videos.size()) break;const auto& item=v.videos[index];int x=366+(int)std::lround((col-offset)*476);
+                bool focused=index==v.selected && !v.sidebar;uint32_t border=focused?red:background;
+                c.roundedRect({x-4,y+30,468,334},22,border);c.roundedRect({x,y+34,460,326},18,0xff173550);
+                auto image=v.thumbnails.find(item.id);if(image!=v.thumbnails.end() && image->second) c.roundImageTop(*image->second,{x,y+34,460,259},18,border);else {c.roundedRect({x,y+34,460,259},18,0xff204968);c.playIcon(x+210,y+145,36,muted);}
+                if(focused) c.marquee(item.title,x+14,y+299,21,white,432,v.selectedSeconds);else c.text(item.title,x+14,y+299,21,white,432);
+                c.text(item.badge.empty()?item.channel:item.badge+" · "+item.channel,x+14,y+332,17,muted,432);
             }
-            c.text(std::to_string(cursor+1)+" / "+std::to_string(shelf.count),1725,y,17,muted,130);
+            c.clip({0,0,1920,1080});c.text(std::to_string(cursor+1)+" / "+std::to_string(shelf.count),1725,y,17,muted,130);
         }
     } else {
     const size_t first=resultFirst(v.selected);
     for(size_t i=first;i<v.videos.size() && i<first+ResultColumns*ResultRows;++i) {
-        const int x=354+(int)((i-first)%ResultColumns)*376,y=190+(int)((i-first)/ResultColumns)*251;
+        const int x=354+(int)((i-first)%ResultColumns)*492,y=190+(int)((i-first)/ResultColumns)*370;
         const bool active=i==v.selected && !v.sidebar;
-        if(active) c.rect(x-6,y-3,377,251,0xffeeeeee);
-        c.rect(x,y,365,245,active?0xffeeeeee:0xff222222);
+        uint32_t border=active?red:background;c.roundedRect({x-4,y-4,468,334},22,border);c.roundedRect({x,y,460,326},18,0xff173550);
         const auto image=v.thumbnails.find(v.videos[i].id);
-        if(image!=v.thumbnails.end() && image->second) c.image(*image->second,{x,y,365,205});
-        else {c.rect(x,y,365,205,0xff303030);c.playIcon(x+160,y+80,36,0xff646464);}
-        if(!v.videos[i].badge.empty()) {
-            const auto& badge=v.videos[i].badge;const int w=std::min(165,24+(int)badge.size()*11);
-            c.rect(x+349-w,y+169,w,31,0xff101010);c.text(badge,x+361-w,y+171,21,white,w-10);
-        }
-        if(active) c.marquee(v.videos[i].title,x+8,y+206,18,0xff141414,349,v.selectedSeconds);else c.text(v.videos[i].title,x+8,y+206,18,white,349,1);
+        if(image!=v.thumbnails.end() && image->second) c.roundImageTop(*image->second,{x,y,460,259},18,border);
+        else {c.roundedRect({x,y,460,259},18,0xff204968);c.playIcon(x+210,y+110,36,muted);}
+        if(active) c.marquee(v.videos[i].title,x+14,y+265,21,white,432,v.selectedSeconds);else c.text(v.videos[i].title,x+14,y+265,21,white,432);
         const bool favorite=v.library && v.library->favorite(v.videos[i].id);
-        c.text((favorite?"Saved · ":"")+(v.videos[i].resumeMs?"Resume "+timeText(v.videos[i].resumeMs)+" · ":"")+v.videos[i].channel,x+8,y+229,15,active?0xff555555:muted,341);
+        c.text((favorite?"Saved · ":"")+(v.videos[i].badge.empty()?"":v.videos[i].badge+" · ")+v.videos[i].channel,x+14,y+298,17,muted,432);
     }
     }
     if(v.videos.empty()) {
