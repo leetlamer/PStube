@@ -58,3 +58,20 @@ libraries. Fixture scripts regenerate test media.
 PStube is GPLv3-or-later. Imported assets and dependencies retain their required
 licences and attribution; see [third-party notices](THIRD_PARTY.md).
 PStube is independent and is not affiliated with Sony or Google.
+
+
+## UI previews
+
+Rendered from the beta 0.16 native UI using sample content and placeholder thumbnails. These are development previews, not PS5 capture screenshots.
+
+### Home and category shelves
+
+![PStube Home with category shelves and controller navigation](pstube-ps5/branding/pstube-home-v016.png)
+
+### Seeking and SponsorBlock markers
+
+![PStube seek bar with elapsed time, remaining time and coloured SponsorBlock ranges](pstube-ps5/branding/pstube-seek-v016.png)
+
+### Network settings
+
+![PStube network settings with DNS over HTTPS and proxy options](pstube-ps5/branding/pstube-network-v016.png)
