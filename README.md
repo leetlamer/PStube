@@ -4,7 +4,7 @@
 
 # PStube
 
-**An ad-free YouTube experience for PlayStation 5.**
+**An ad-free YouTube experience for PlayStation 5, no paid subscriptions required.**
 
 PStube is a standalone native homebrew app, controller navigation,
 Google account support and software-decoded playback. Playback runs on the console;
