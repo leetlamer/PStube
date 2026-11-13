@@ -6,7 +6,7 @@
 
 **An ad-free YouTube experience for PlayStation 5.**
 
-PStube is a standalone native homebrew app with a blue TV interface, controller navigation,
+PStube is a standalone native homebrew app, controller navigation,
 Google account support and software-decoded playback. Playback runs on the console;
 no PC transcoding server is required.
 
@@ -38,7 +38,7 @@ checksums; the source and relinking archive is intended for developers, not inst
 
 ## Features
 
-- Home, Music, Gaming, News and Live shelves, search, channels and portrait Shorts.
+- Full YouTube UI navigation.
 - Four-column result cards, populated thumbnails, animated scrolling and a sliding sidebar.
 - Google device-code/QR sign-in, saved accounts, subscriptions, playlists and history.
 - Streaming with bounded reconnection and four saved buffer presets under **Settings → Playback**.
@@ -46,7 +46,7 @@ checksums; the source and relinking archive is intended for developers, not inst
 - Automatically populated channel, views, date, likes and subscriber metadata; unavailable counts remain explicit.
 - Flat four-column Subscriptions, History and Liked Videos, with dedicated portrait cards for Shorts.
 - Centered animated loading indicator and controller input during video network waits.
-- Optional SponsorBlock skips and DeArrow, plus app-level DNS and proxy settings.
+- SponsorBlock skips and DeArrow, plus app-level DNS and proxy settings.
 
 ## Playback limits
 
@@ -55,6 +55,8 @@ source-dependent. The app uses software decoding; hardware acceleration, HDR out
 HDMI refresh switching are not implemented. Buffer targets are approximate and memory-bounded.
 Larger buffers cannot resolve sustained decoder overload or a stream rejected with HTTP403.
 YouTube does not return all counts for every video; missing dislikes are not estimated.
+
+2K and 4k Native hardware decoding is next development milestone.
 
 ## Screenshots
 
