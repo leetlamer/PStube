@@ -1,4 +1,4 @@
-# Beta 0.19 feature status
+# Beta 0.20 feature status
 
 | Area | Implementation | Verification |
 |---|---|---|
@@ -7,7 +7,7 @@
 | Stream recovery | Buffered exact-byte HTTP resume; bounded URL refresh/reseek | Host receive-error/short-body fault tests; real console forced interruptions |
 | Settings | Dedicated settings hub; playback-only settings panel with reachable Back | Target/host build; interactive console check pending |
 | Buffer presets | Persisted Low/Normal/High/Maximum; bounded byte-based VOD targets, protected live policy | UBSan policy bounds/persistence; console Normal regression |
-| Video information | Channel/views/date, available subscriber and thumb counts; async selected-card enrichment | Host desktop/TV schema tests; real search capture; unavailable dislikes explicit |
+| Video information | Channel/views/date, available subscriber and thumb counts; automatic visible-card enrichment | Host desktop/TV schema tests; real search capture; unavailable dislikes explicit |
 | HDR output | Unavailable: current verified display path is 8-bit SDR | HDR sources excluded to prevent incorrect color |
 | Selected description | Async creator metadata, clipped UTF8 right-to-left marquee | Console description1171bytes; host timing/clipping checks |
 | Playback information | Actual source dimensions, fractional FPS, codec and software threads | Host actual decoder metrics; console regression |
@@ -22,7 +22,7 @@
 | DeArrow | Independent titles/thumbnails options, trusted alternatives, original fallback; default Off | Console two title replacements; alternate image delivery unverified |
 | VOD VP9/Opus, AVC/AAC | 6/8/10 video threads (8 default), 2 scaler threads, bitrate-based bounded compressed buffers (up to 32MiB video/2MiB audio) and validated range reconnect | Owner varied playback and console regression; native4K remains source-dependent |
 | Live AVC/AAC HLS | Rolling segments, separate audio, bounded rings | Short 1080p60 console test; longer prior tests; experimental |
-| VOD seeking | Progress/preview, elapsed/duration/remaining, byte ranges, fresh AV clocks | Console forward/backward and long seeks; host keyframe/audio trimming test |
+| VOD seeking | Progress/preview, elapsed/duration/remaining, byte ranges, fresh AV clocks | Console forward/backward and long seeks; storyboard sheet/crop delivery; trigger seek selection |
 | Resume after restart, live DVR | Pending | VOD seeking implemented; persistence/live timeline work remains |
 | Hardware/GPU decode, HDMI auto refresh | Not implemented | No claim of hardware acceleration |
 
