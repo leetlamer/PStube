@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Package v0.17 without modifying archived v0.01 release files."""
+"""Package v0.19 without modifying archived v0.01 release files."""
 from pathlib import Path
 import hashlib,json,shutil,tarfile,zipfile
 APP=Path(__file__).resolve().parents[1];ROOT=APP.parent;DIST=APP/'dist'
-VERSION='v0.17';NAME='PStube-PS5-Test-'+VERSION
+VERSION='v0.19';NAME='PStube-PS5-Test-'+VERSION
 stage=DIST/NAME;stage.mkdir(exist_ok=True)
 app=stage/'PStube-PS5-Test';(app/'sce_sys').mkdir(parents=True,exist_ok=True)
 shutil.copy2(DIST/(NAME+'.elf'),app/'eboot.elf')
 shutil.copy2(APP/'sce_sys/icon0.png',app/'sce_sys/icon0.png')
 shutil.copytree(APP/'assets',app/'assets',dirs_exist_ok=True)
-for name in ['LICENSE','third_party/SDL-LICENSE.txt','docs/BETA_V017.md']:
+for name in ['LICENSE','third_party/SDL-LICENSE.txt','docs/BETA_V019.md']:
  shutil.copy2(APP/name,stage/('README.md' if name.endswith('.md') else Path(name).name))
-for guide in ['BETA_V017_TEST_RESULTS.md','BETA_FEATURE_MATRIX.md','BETA_V014.md','BETA_V013.md']:
+for guide in ['BETA_V019_TEST_RESULTS.md','BETA_FEATURE_MATRIX.md','BETA_V014.md','BETA_V013.md']:
  shutil.copy2(APP/'docs'/guide,stage/guide)
 shutil.copy2(APP/'build/codecs/ffmpeg-7.1.5/COPYING.LGPLv2.1',stage/'FFmpeg-LGPL-2.1.txt')
-shutil.copy2(DIST/'PStube-PS5-Platform-v0.17.elf',stage/'PStube-PS5-Platform-v0.17.elf')
+shutil.copy2(DIST/'PStube-PS5-Platform-v0.19.elf',stage/'PStube-PS5-Platform-v0.19.elf')
 shutil.copytree(APP/'third_party/licenses',stage/'licenses',dirs_exist_ok=True)
 shutil.copy2(APP/'THIRD_PARTY.md',stage/'THIRD_PARTY.md')
 shutil.copy2(APP/'assets/OFL.txt',stage/'licenses/Gontserrat-OFL.txt')
@@ -27,7 +27,7 @@ with zipfile.ZipFile(DIST/(NAME+'.zip'),'w',zipfile.ZIP_DEFLATED) as z:
  for p in sorted(stage.rglob('*')):
   if p.is_file():z.write(p,p.relative_to(stage))
 # App objects + static libraries permit relinking; exact source and SDK included.
-public_docs={'BETA_FEATURE_MATRIX.md','BETA_V013.md','BETA_V014.md','BETA_V016.md','BETA_V016_TEST_RESULTS.md','BETA_V017.md','BETA_V017_TEST_RESULTS.md'}
+public_docs={'BETA_FEATURE_MATRIX.md','BETA_V013.md','BETA_V014.md','BETA_V016.md','BETA_V016_TEST_RESULTS.md','BETA_V019.md','BETA_V019_TEST_RESULTS.md'}
 def source_filter(item):
  parts=Path(item.name).parts
  if '__pycache__' in parts or Path(item.name).name in ['CURRENT_WORK_CHECKPOINT.md','.DS_Store']:return None
@@ -36,10 +36,10 @@ def source_filter(item):
 with tarfile.open(DIST/(NAME+'-source-relink.tar.gz'),'w:gz') as t:
  for name in ['src','scripts','tests','docs','third_party','README.md','LICENSE','THIRD_PARTY.md','assets','sce_sys','branding']:
   t.add(APP/name,arcname='pstube-ps5/'+name,filter=source_filter)
- for name in ['commands.json','build-manifest.json','elf-verification.json','v017-host-tests.log','v017-build.log','PStube-PS5-Test-v0.17.o','PStube-PS5-Platform-v0.17.o','json.cpp.o','core.cpp.o','app_state.cpp.o','app_ui.cpp.o','oauth.cpp.o','tv_oauth.cpp.o','live_hls.cpp.o','console_curl.o','codecs/install','codecs/manifest.json','codecs/configure-command.json','codecs/ffmpeg/config.h','codecs/ffmpeg/config_components.h','codecs/ffmpeg/ffbuild/config.mak']:
+ for name in ['commands.json','build-manifest.json','elf-verification.json','v019-host-tests.log','v019-build.log','PStube-PS5-Test-v0.19.o','PStube-PS5-Platform-v0.19.o','json.cpp.o','core.cpp.o','app_state.cpp.o','app_ui.cpp.o','oauth.cpp.o','tv_oauth.cpp.o','live_hls.cpp.o','console_curl.o','codecs/install','codecs/manifest.json','codecs/configure-command.json','codecs/ffmpeg/config.h','codecs/ffmpeg/config_components.h','codecs/ffmpeg/ffbuild/config.mak']:
   t.add(APP/'build'/name,arcname='pstube-ps5/build/'+name)
- t.add(APP/'test-results/beta-v017-evidence.json',arcname='pstube-ps5/test-results/beta-v017-evidence.json')
- for capture in ['remote-v017-reconnect-final','remote-v017-1440-8','remote-v017-1440-10','remote-v017-native4k','remote-v017-long','remote-v017-capture']:
+ t.add(APP/'test-results/beta-v019-evidence.json',arcname='pstube-ps5/test-results/beta-v019-evidence.json')
+ for capture in ['remote-v019-reconnect-final','remote-v019-1440-8','remote-v019-1440-10','remote-v019-native4k','remote-v019-long','remote-v019-capture','remote-v019-menus','remote-v019-search','remote-v019-playback']:
   evidence=APP/'test-results'/capture/'session.log'
   if evidence.exists():t.add(evidence,arcname='pstube-ps5/test-results/'+capture+'/session.log')
  for name in ['ffmpeg-7.1.5.tar.xz','sdk-0.45.zip','ps5-payload-sdk-v0.45.zip']:
