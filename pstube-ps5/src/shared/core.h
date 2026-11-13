@@ -12,7 +12,7 @@ struct DisplayLayout {
 };
 DisplayLayout layout(int outputWidth,int outputHeight,float overscan=0.05f);
 Rect fitVideo(int videoWidth,int videoHeight,Rect viewport);
-struct Video { std::string id,title,channel,thumbnail;std::string badge{};unsigned resumeMs=0;std::string browseId{},browseParams{}; };
+struct Video { std::string id,title,channel,thumbnail;std::string badge{};unsigned resumeMs=0;std::string browseId{},browseParams{};std::string views{},published{},likes{},dislikes{},subscribers{}; };
 std::vector<Video> catalog(const Json& response);
 struct CatalogStats { unsigned videoIds=0,watchEndpoints=0,tileHeaders=0,overlayMetadata=0,lockups=0; };
 std::vector<Video> channelCatalog(const Json& response);

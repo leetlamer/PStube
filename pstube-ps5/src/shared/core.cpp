@@ -59,6 +59,8 @@ void videos(const Json& node,std::vector<Video>& output,unsigned depth) {
         if(!duplicate) {
             Video video{id,text(title),text(node.get("longBylineText")),{}};
             if(video.channel.empty()) video.channel=text(node.get("shortBylineText"));
+            video.views=text(node.get("viewCountText"));if(video.views.empty()) video.views=text(node.get("shortViewCountText"));
+            video.published=text(node.get("publishedTimeText"));
             video.badge=text(node.get("lengthText"));
             if(video.badge.empty() && header) video.badge=text(header->get("duration"));
             if(video.badge.empty() && header) if(const auto* overlays=header->get("thumbnailOverlays"))
@@ -81,6 +83,25 @@ void videos(const Json& node,std::vector<Video>& output,unsigned depth) {
                     }
                 }
             }
+            if(header) if(const auto* overlays=header->get("thumbnailOverlays")) for(const auto& overlay:overlays->children) if(const auto* metadata=overlay.get("tileMetadataRenderer")) {
+                if(video.channel.empty()) video.channel=text(metadata->get("line1"));
+                auto details=text(metadata->get("line2"));if(video.views.empty() && !details.empty()) video.views=details;
+            }
+            if(const auto* rows=path(&node,{"metadata","lockupMetadataViewModel","metadata","contentMetadataViewModel","metadataRows"})) if(rows->children.size()>1) {
+                if(const auto* parts=rows->children[1].get("metadataParts")) {if(video.views.empty() && !parts->children.empty()) video.views=text(parts->children[0].get("text"));if(video.published.empty() && parts->children.size()>1) video.published=text(parts->children[1].get("text"));}
+            }
+            const auto tileLines=[&](const Json* metadata) {
+                if(!metadata) return;const auto* lines=metadata->get("lines");if(!lines) return;
+                std::string summary;
+                for(const auto& line:lines->children) if(const auto* parts=path(&line,{"lineRenderer","items"})) for(const auto& part:parts->children) if(const auto* entry=part.get("lineItemRenderer")) {
+                    auto value=text(entry->get("text"));if(value.empty() || value=="•" || value=="·") continue;
+                    const auto channelLink=[&](const auto& self,const Json& n,unsigned depth)->bool {if(depth>12) return false;if(n.string("browseId").compare(0,2,"UC")==0) return true;for(const auto& child:n.children) if(self(self,child,depth+1)) return true;return false;};
+                    if(channelLink(channelLink,*entry,0)) {if(video.channel.empty()) video.channel=value;}else {if(!summary.empty()) summary+=" · ";summary+=value;}
+                }
+                if(video.views.empty()) video.views=summary;
+            };
+            tileLines(path(&node,{"metadata","tileMetadataRenderer"}));
+            if(header) if(const auto* overlays=header->get("thumbnailOverlays")) for(const auto& overlay:overlays->children) tileLines(overlay.get("tileMetadataRenderer"));
             if(thumbnail) {
                 const auto* list=thumbnail->get("thumbnails");
                 if(!list) list=thumbnail->get("sources");

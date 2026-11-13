@@ -3,13 +3,13 @@
 #include <stdio.h>
 namespace smarttube {
 namespace {
-bool valid(const Video& v) {return !v.id.empty() && v.id.size()<=64 && v.title.size()<=1024 && v.channel.size()<=512 && v.thumbnail.size()<=2048 && v.badge.size()<=32 && v.resumeMs<=43200000;}
-std::string videoJson(const Video& v) {return "{\"id\":"+quoteJson(v.id)+",\"title\":"+quoteJson(v.title)+",\"channel\":"+quoteJson(v.channel)+",\"thumbnail\":"+quoteJson(v.thumbnail)+",\"badge\":"+quoteJson(v.badge)+",\"resumeMs\":"+std::to_string(v.resumeMs)+"}";}
+bool valid(const Video& v) {return !v.id.empty() && v.id.size()<=64 && v.title.size()<=1024 && v.channel.size()<=512 && v.thumbnail.size()<=2048 && v.badge.size()<=32 && v.views.size()<=512 && v.published.size()<=256 && v.likes.size()<=128 && v.dislikes.size()<=128 && v.subscribers.size()<=256 && v.resumeMs<=43200000;}
+std::string videoJson(const Video& v) {return "{\"id\":"+quoteJson(v.id)+",\"title\":"+quoteJson(v.title)+",\"channel\":"+quoteJson(v.channel)+",\"thumbnail\":"+quoteJson(v.thumbnail)+",\"badge\":"+quoteJson(v.badge)+",\"views\":"+quoteJson(v.views)+",\"published\":"+quoteJson(v.published)+",\"likes\":"+quoteJson(v.likes)+",\"dislikes\":"+quoteJson(v.dislikes)+",\"subscribers\":"+quoteJson(v.subscribers)+",\"resumeMs\":"+std::to_string(v.resumeMs)+"}";}
 void readList(const Json* node,std::vector<Video>& out) {
     if(!node || node->type!=Json::Array) return;
     for(const auto& item:node->children) {
         Video v{item.string("id"),item.string("title"),item.string("channel"),item.string("thumbnail")};
-        v.badge=item.string("badge");const auto position=item.integer("resumeMs");if(position>0 && position<=43200000) v.resumeMs=(unsigned)position;
+        v.views=item.string("views");v.published=item.string("published");v.likes=item.string("likes");v.dislikes=item.string("dislikes");v.subscribers=item.string("subscribers");v.badge=item.string("badge");const auto position=item.integer("resumeMs");if(position>0 && position<=43200000) v.resumeMs=(unsigned)position;
         if(valid(v) && out.size()<40) out.push_back(v);
     }
 }
@@ -46,6 +46,7 @@ bool Library::load(const char* path) {
     next.preferences.preferAv1=currentDefaults && document.integer("preferAv1",0)==1;
     next.preferences.scalerThreads=currentDefaults && document.integer("scalerThreads",2)==1?1:2;
     unsigned workers=(unsigned)document.integer("ps5DecoderThreads",8);next.preferences.decoderThreads=workers==6 || workers==10?workers:8;
+    next.preferences.bufferLevel=(unsigned)std::max(0,std::min(3,document.integer("ps5BufferLevel",1)));
     next.preferences.maxFps=document.integer("fpsDefaults",0)>=53 && document.integer("maxFps",60)==30?30:60;
     next.preferences.fastStart=false; // Migrate v0.17: native demuxer rejected the fragmented layout.
     const int end=document.integer("endMode",0);next.preferences.endMode=end>=0 && end<=2?static_cast<EndMode>(end):EndMode::AutoNext;
@@ -57,6 +58,7 @@ bool Library::save(const char* path) const {
     std::string bytes="{\"playbackDefaults\":52,\"fpsDefaults\":53,\"scalerThreads\":"+std::to_string(preferences.scalerThreads==1?1:2)+",\"endMode\":"+std::to_string(static_cast<int>(preferences.endMode))+",\"preferAv1\":"+std::to_string(preferences.preferAv1?1:0)+",\"audioLanguage\":"+quoteJson(preferences.audioLanguage)+",\"softwareCodecs\":"+std::to_string(preferences.softwareCodecs?1:0)+",\"maxFps\":"+std::to_string(preferences.maxFps)+",\"fastStart\":"+std::to_string(preferences.fastStart?1:0)+",\"playbackMode\":14,\"height\":"+std::to_string(defaultQuality(preferences.height))+",\"seconds\":"+std::to_string(preferences.seconds)+",\"autoplay\":"+(preferences.endMode==EndMode::AutoNext?"1":"0");
     bytes+=",\"ps5SponsorSkip\":"+std::to_string(preferences.sponsorMute?1:0)+",\"ps5SponsorCategories\":"+std::to_string(preferences.sponsorCategories)+",\"ps5SponsorMinimum\":"+std::to_string(preferences.sponsorMinimum)+",\"ps5SponsorNotices\":"+std::to_string(preferences.sponsorNotices?1:0)+",\"ps5DeArrow\":"+std::to_string(preferences.dearrow?1:0)+",\"ps5DeArrowTitles\":"+std::to_string(preferences.dearrowTitles?1:0)+",\"ps5DeArrowThumbnails\":"+std::to_string(preferences.dearrowThumbnails?1:0);
     bytes+=",\"ps5DecoderThreads\":"+std::to_string(preferences.decoderThreads)+",\"ps5Native4k\":"+std::to_string(preferences.native4k?1:0)+",\"ps5Debug\":"+std::to_string(preferences.debugMetrics?1:0);
+    bytes+=",\"ps5BufferLevel\":"+std::to_string(preferences.bufferLevel);
     for(const auto& item:{std::make_pair("favorites",&favorites),std::make_pair("history",&history)}) {
         bytes+=",\""+std::string(item.first)+"\":[";bool first=true;
         for(const auto& video:*item.second) {if(!first) bytes+=",";first=false;bytes+=videoJson(video);}bytes+="]";

@@ -16,7 +16,7 @@
 #include <stb/stb_image.h>
 namespace smarttube {
 namespace {
-constexpr uint32_t background=0xff081321,muted=0xff9db4cc,white=0xffeef6ff,red=0xff329dff;
+constexpr uint32_t background=0xff000000,muted=0xff9db4cc,white=0xffeef6ff,red=0xff329dff;
 struct Glyph {int width=0,height=0,left=0,top=0,advance=0;std::vector<uint8_t> alpha;};
 uint32_t blend(uint32_t under,uint32_t color,unsigned alpha) {
     const auto channel=[&](unsigned shift) {return ((((under>>shift)&255)*(255-alpha)+((color>>shift)&255)*alpha+127)/255)<<shift;};
@@ -60,6 +60,7 @@ bool Canvas::loadFont(const char* path) {
     impl_->loaded=valid && !impl_->bytes.empty() && stbtt_InitFont(&impl_->font,impl_->bytes.data(),0);return impl_->loaded;
 }
 void Canvas::rect(int x,int y,int w,int h,uint32_t color) {
+    x+=originX_;y+=originY_;
     const int right=std::min(std::min(surface_.width,clip_.x+clip_.w),x+w),bottom=std::min(std::min(surface_.height,clip_.y+clip_.h),y+h);
     if(right<=std::max(std::max(0,clip_.x),x) || bottom<=std::max(std::max(0,clip_.y),y)) return;
     for(int row=std::max(std::max(0,clip_.y),y);row<bottom;++row) std::fill(surface_.pixels+(size_t)row*surface_.pitch+std::max(std::max(0,clip_.x),x),surface_.pixels+(size_t)row*surface_.pitch+right,color);
@@ -74,7 +75,7 @@ void Canvas::roundImageTop(const Image& value,Rect v,int radius,uint32_t outside
 }
 void Canvas::text(const std::string& value,int x,int y,int size,uint32_t color,int width,int lines) {
     if(!impl_->loaded || size<8 || size>80 || lines<1) return;
-    const int start=x,right=x+width;int line=0;
+    x+=originX_;y+=originY_;const int start=x,right=x+width;int line=0;
     for(size_t p=0;p<value.size();) {
         const auto cp=codepoint(value,p);auto& glyph=impl_->glyph(cp,size);
         if(cp=='\n' || x+glyph.advance>right) {if(++line>=lines) break;x=start;y+=size+7;if(cp=='\n') continue;}
@@ -95,7 +96,7 @@ unsigned Canvas::loadIcons() {
     }return (unsigned)impl_->icons.size();
 }
 bool Canvas::icon(const std::string& name,Rect view,uint32_t tint) {
-    auto found=impl_->icons.find(name);if(found==impl_->icons.end() || view.w<=0 || view.h<=0) return false;auto& image=found->second;
+    auto found=impl_->icons.find(name);if(found==impl_->icons.end() || view.w<=0 || view.h<=0) return false;auto& image=found->second;view.x+=originX_;view.y+=originY_;
     for(int y=std::max(0,view.y);y<std::min(surface_.height,view.y+view.h);++y) for(int x=std::max(0,view.x);x<std::min(surface_.width,view.x+view.w);++x) {auto pixel=image.pixels[(size_t)((y-view.y)*image.height/view.h)*image.width+(x-view.x)*image.width/view.w];unsigned alpha=pixel>>24;if(alpha) {auto& dst=surface_.pixels[(size_t)y*surface_.pitch+x];dst=blend(dst,tint,alpha);}}return true;
 }
 void Canvas::marquee(const std::string& value,int x,int y,int size,uint32_t color,int width,double seconds) {
@@ -104,7 +105,7 @@ void Canvas::marquee(const std::string& value,int x,int y,int size,uint32_t colo
     if(found==impl_->marqueeRuns.end()) {if(impl_->marqueeRuns.size()>=8) impl_->marqueeRuns.clear();Impl::TextRun run;for(size_t p=0;p<value.size();) {auto cp=codepoint(value,p);if(cp=='\n' || cp=='\r') cp=' ';run.positions.push_back(run.total);run.codepoints.push_back(cp);run.total+=impl_->glyph(cp,size).advance;}found=impl_->marqueeRuns.emplace(std::move(key),std::move(run)).first;}
     auto& run=found->second;int total=run.total;
     if(total<=width) {std::string one=value;std::replace(one.begin(),one.end(),'\n',' ');std::replace(one.begin(),one.end(),'\r',' ');text(one,x,y,size,color,width);return;}
-    double delay=1.2,travel=(total+width+90)/52.0;double phase=fmod(std::max(0.0,seconds),delay+travel);int shift=phase<=delay?0:(int)((phase-delay)*52);
+    x+=originX_;y+=originY_;double delay=1.2,travel=(total+width+90)/52.0;double phase=fmod(std::max(0.0,seconds),delay+travel);int shift=phase<=delay?0:(int)((phase-delay)*52);
     auto begin=std::upper_bound(run.positions.begin(),run.positions.end(),shift);size_t first=begin==run.positions.begin()?0:(size_t)(begin-run.positions.begin()-1);
     for(size_t i=first;i<run.codepoints.size();++i) {int cursor=x+run.positions[i]-shift;auto& glyph=impl_->glyph(run.codepoints[i],size);if(cursor>=x+width) break;int top=y+size+glyph.top;
         if(cursor+glyph.advance>=x) for(int yy=0;yy<glyph.height;++yy) for(int xx=0;xx<glyph.width;++xx) {int px=cursor+glyph.left+xx,py=top+yy;if(px<x || px>=x+width || px<std::max(0,clip_.x) || px>=std::min(surface_.width,clip_.x+clip_.w) || py<std::max(0,clip_.y) || py>=std::min(surface_.height,clip_.y+clip_.h)) continue;auto a=glyph.alpha[(size_t)yy*glyph.width+xx];if(a) {auto& dst=surface_.pixels[(size_t)py*surface_.pitch+px];dst=blend(dst,color,a);}}
@@ -113,8 +114,9 @@ void Canvas::marquee(const std::string& value,int x,int y,int size,uint32_t colo
 
 void Canvas::image(const Image& value,Rect view) {
     if(value.width<1 || value.height<1 || value.pixels.size()!=(size_t)value.width*value.height) {rect(view.x,view.y,view.w,view.h,0xff000000);return;}
-    const auto fit=fitVideo(value.width,value.height,view);
+    auto fit=fitVideo(value.width,value.height,view);
     if(fit.x!=view.x || fit.y!=view.y || fit.w!=view.w || fit.h!=view.h) rect(view.x,view.y,view.w,view.h,0xff000000);
+    fit.x+=originX_;fit.y+=originY_;
     const int left=std::max(std::max(0,clip_.x),fit.x),right=std::min(std::min(surface_.width,clip_.x+clip_.w),fit.x+fit.w);
     const int top=std::max(std::max(0,clip_.y),fit.y),bottom=std::min(std::min(surface_.height,clip_.y+clip_.h),fit.y+fit.h);
     if(left>=right || top>=bottom || right-left>1920) return;
@@ -136,10 +138,10 @@ void Canvas::image(const Image& value,Rect view) {
 }
 void Canvas::playIcon(int x,int y,int size,uint32_t color) {for(int col=0;col<size;++col) rect(x+col,y+col/2,1,size-col,color);}
 std::shared_ptr<Image> decodeThumbnail(const std::string& bytes,int targetWidth,int targetHeight) {
-    if(targetWidth<1 || targetWidth>640 || targetHeight<1 || targetHeight>360) return {};
+    if(targetWidth<1 || targetWidth>640 || targetHeight<1 || targetHeight>640 || (size_t)targetWidth*targetHeight>640u*360u) return {};
     if(bytes.empty() || bytes.size()>512*1024) return {};
     int width=0,height=0,channels=0;
-    if(!stbi_info_from_memory((const stbi_uc*)bytes.data(),(int)bytes.size(),&width,&height,&channels) || width<1 || height<1 || width>1280 || height>720) return {};
+    if(!stbi_info_from_memory((const stbi_uc*)bytes.data(),(int)bytes.size(),&width,&height,&channels) || width<1 || height<1 || width>1280 || height>1920) return {};
     auto* decoded=stbi_load_from_memory((const stbi_uc*)bytes.data(),(int)bytes.size(),&width,&height,&channels,3);if(!decoded) return {};
     auto out=std::make_shared<Image>();out->width=targetWidth;out->height=targetHeight;out->pixels.resize(targetWidth*targetHeight,0xff000000);
     const auto fit=fitVideo(width,height,{0,0,targetWidth,targetHeight});
@@ -161,77 +163,58 @@ const char* menuLabel(int index) {
     static const char* labels[]={"Home","Search","Subscriptions","Channels","Your history","Playlists","Liked videos","Music","Gaming","Live videos","News","Shorts","Favorites","Local history","Settings"};return index>=0 && index<MenuCount?labels[index]:"Home";
 }
 void drawBrowse(Canvas& c,const BrowseView& v) {
-    c.rect(0,0,1920,1080,background);c.rect(0,0,300,1080,0xff0c2036);
-    c.rect(28,24,246,120,v.sidebar && v.menu==-1?red:0xff173550);
+    c.origin(0);c.clip({0,0,1920,1080});c.rect(0,0,1920,1080,background);
+    double expanded=v.sidebarExpansion<0?(v.sidebar?1:0):std::max(0.0,std::min(1.0,v.sidebarExpansion));
+    int shift=(int)std::lround(-288*(1-expanded));c.origin((int)std::lround(-300*(1-expanded)));
+    c.rect(0,0,300,1080,0xff101010);c.rect(28,24,246,120,v.sidebar && v.menu==-1?red:0xff202020);
     if(v.linked && v.accountImage) c.image(*v.accountImage,{40,39,88,88});else {c.rect(40,39,88,88,0xff265779);c.text("G",62,57,43,white,60);}
     c.text(v.linked?(v.accountName.empty()?"Account":v.accountName):"login",140,45,22,white,126,2);
-    if(v.linked) c.text("Accounts",140,102,17,muted,125);
-    c.text("PStube",48,151,32,white,220);
-    for(int i=0;i<MenuCount;++i) {
-        const int y=209+i*46;
-        if(v.menu==i) {c.rect(30,y-5,246,43,v.sidebar?0xffeeeeee:0xff343434);c.rect(30,y-5,5,43,red);}
-        const char* menuIcons[]={"icon_home","action_search","icon_subscriptions","icon_channels","icon_history","icon_playlist","icon_playlist","icon_music","icon_gaming","icon_live","icon_news","icon_shorts","icon_playlist","icon_history","icon_settings"};c.icon(menuIcons[i],{47,y+8,26,26},v.menu==i && v.sidebar?0xff161616:white);
-        c.text(menuLabel(i),84,y+4,24,v.menu==i && v.sidebar?0xff161616:(v.menu==i?white:muted),187);
-    }
-    c.text("PStube PS5 · Beta 0.17",48,970,19,muted,225);c.text("OPTIONS  Exit",48,1006,19,muted,225);
-    c.text(v.heading,354,65,42,white,1100);c.text(v.subtitle,356,123,23,muted,1200);
-    if(v.linked) {
-        c.text((v.accountName.empty()?"YouTube account":v.accountName)+" logged in",1320,64,24,white,490,2);
-    }
+    if(v.linked) c.text("Accounts",140,102,17,muted,125);c.text("PStube",48,151,32,white,220);
+    const char* menuIcons[]={"icon_home","action_search","icon_subscriptions","icon_channels","icon_history","icon_playlist","lb_ic_thumb_up","icon_music","icon_gaming","icon_live","icon_news","icon_shorts","icon_playlist","icon_history","icon_settings"};
+    for(int i=0;i<MenuCount;++i) {int y=209+i*46;if(v.menu==i) {c.rect(30,y-5,246,43,v.sidebar?0xffeeeeee:0xff343434);c.rect(30,y-5,5,43,red);}c.icon(menuIcons[i],{47,y+8,26,26},v.menu==i && v.sidebar?0xff161616:white);c.text(menuLabel(i),84,y+4,24,v.menu==i && v.sidebar?0xff161616:(v.menu==i?white:muted),187);}
+    c.text("PStube PS5 · Beta 0.19",48,970,19,muted,225);c.text("OPTIONS  Exit",48,1006,19,muted,225);
+    c.origin(shift);c.text(v.heading,354,65,42,white,1400);c.text(v.subtitle,356,123,23,muted,1480);
+    if(v.linked) c.text((v.accountName.empty()?"YouTube account":v.accountName)+" logged in",1320-shift,64,24,white,490,2);
+    const int clipLeft=320+shift;c.clip({clipLeft,165,1900-clipLeft,760});
+    auto card=[&](size_t index,int x,int y,bool portrait) {
+        if(index>=v.videos.size()) return;const auto& item=v.videos[index];bool focused=index==v.selected && !v.sidebar;
+        int w=portrait?300:360+(int)std::lround(72*(1-expanded)),ih=portrait?534:w*9/16,h=ih+95;uint32_t border=focused?red:background;
+        c.roundedRect({x-4,y-4,w+8,h+8},22,border);c.roundedRect({x,y,w,h},18,0xff171717);
+        auto image=v.thumbnails.find(item.id);if(image!=v.thumbnails.end() && image->second) c.roundImageTop(*image->second,{x,y,w,ih},18,border);
+        else {c.roundedRect({x,y,w,ih},18,0xff202020);c.playIcon(x+w/2-18,y+ih/2-18,36,muted);}
+        if(focused) c.marquee(item.title,x+14,y+ih+6,21,white,w-28,v.selectedSeconds);else c.text(item.title,x+14,y+ih+6,21,white,w-28);
+        c.text(item.channel+(item.subscribers.empty()?"":" · "+item.subscribers),x+14,y+ih+32,17,muted,w-28);
+        c.text(item.views+(item.published.empty()?"":(item.views.empty()?"":" · ")+item.published),x+14,y+ih+53,16,muted,w-28);
+        c.icon("lb_ic_thumb_up",{x+14,y+ih+76,16,16},muted);c.text(item.likes.empty()?"—":item.likes,x+36,y+ih+73,16,muted,w/3);
+        c.icon("lb_ic_thumb_down",{x+w/2,y+ih+76,16,16},muted);c.text(item.dislikes.empty()?"—":item.dislikes,x+w/2+22,y+ih+73,16,muted,w/3);
+        if(!item.badge.empty()) {c.roundedRect({x+w-88,y+ih-29,80,23},5,0xff171717);c.text(item.badge,x+w-82,y+ih-28,16,white,74);}
+    };
     if(v.channelList) {
-        const size_t first=resultFirst(v.selected,true);
-        for(size_t i=first;i<v.videos.size() && i<first+ChannelRows;++i) {
-            const int y=190+(int)(i-first)*120;const bool focused=i==v.selected && !v.sidebar;
-            c.rect(350,y,1490,108,focused?red:0xff16334e);c.rect(354,y+4,1482,100,0xff102941);
-            const auto thumb=v.thumbnails.find(v.videos[i].id);
-            if(thumb!=v.thumbnails.end() && thumb->second) c.image(*thumb->second,{370,y+10,160,88});
-            else {c.rect(370,y+10,160,88,0xff204968);c.text("Channel",391,y+37,23,white,210);}
-            c.text(v.videos[i].title,566,y+14,28,white,1020,2);
-            c.text("Open channel videos",568,y+66,20,muted,950);c.text(">",1757,y+29,36,focused?red:white,58);
-        }
+        double offset=v.verticalOffset<0?(double)resultFirst(v.selected,true):v.verticalOffset;
+        int first=std::max(0,(int)std::floor(offset)-1),end=std::min((int)v.videos.size(),(int)std::floor(offset)+8);
+        for(int i=first;i<end;++i) {int y=190+(int)std::lround((i-offset)*120);bool focused=(size_t)i==v.selected && !v.sidebar;c.roundedRect({350,y,1490,108},12,focused?red:0xff171717);auto image=v.thumbnails.find(v.videos[i].id);if(image!=v.thumbnails.end() && image->second) c.image(*image->second,{370,y+10,160,88});c.text(v.videos[i].title,566,y+14,28,white,1020,2);c.text("Open channel videos",568,y+66,20,muted,950);}
     } else if(!v.shelves.empty()) {
-        size_t active=selectedShelf(v.shelves,v.selected),top=active?active-1:0;
-        for(size_t r=top;r<v.shelves.size() && r<top+2;++r) {
-            const auto& shelf=v.shelves[r];int y=170+(int)(r-top)*370;c.text(shelf.title,354,y,26,white,1330);
-            size_t cursor=r==active?v.selected-shelf.first:shelf.cursor;
-            double offset=r<v.shelfOffsets.size()?v.shelfOffsets[r]:carouselTarget(cursor,shelf.count);
-            int first=std::max(0,(int)std::floor(offset)-1),last=std::min((int)shelf.count,(int)std::floor(offset)+5);
-            c.clip({320,y+30,1580,334});
-            for(int col=first;col<last;++col) {
-                size_t index=shelf.first+(size_t)col;if(index>=v.videos.size()) break;const auto& item=v.videos[index];int x=366+(int)std::lround((col-offset)*476);
-                bool focused=index==v.selected && !v.sidebar;uint32_t border=focused?red:background;
-                c.roundedRect({x-4,y+30,468,334},22,border);c.roundedRect({x,y+34,460,326},18,0xff173550);
-                auto image=v.thumbnails.find(item.id);if(image!=v.thumbnails.end() && image->second) c.roundImageTop(*image->second,{x,y+34,460,259},18,border);else {c.roundedRect({x,y+34,460,259},18,0xff204968);c.playIcon(x+210,y+145,36,muted);}
-                if(focused) c.marquee(item.title,x+14,y+299,21,white,432,v.selectedSeconds);else c.text(item.title,x+14,y+299,21,white,432);
-                c.text(item.badge.empty()?item.channel:item.badge+" · "+item.channel,x+14,y+332,17,muted,432);
-            }
-            c.clip({0,0,1920,1080});c.text(std::to_string(cursor+1)+" / "+std::to_string(shelf.count),1725,y,17,muted,130);
+        size_t active=selectedShelf(v.shelves,v.selected);double offset=v.verticalOffset<0?(double)(active?active-1:0):v.verticalOffset;
+        int first=std::max(0,(int)std::floor(offset)-1),end=std::min((int)v.shelves.size(),(int)std::floor(offset)+4);
+        for(int r=first;r<end;++r) {const auto& shelf=v.shelves[r];int y=170+(int)std::lround((r-offset)*370);c.text(shelf.title,354,y,26,white,1330);size_t cursor=(size_t)r==active?v.selected-shelf.first:shelf.cursor;
+            double horizontal=(size_t)r<v.shelfOffsets.size()?v.shelfOffsets[r]:carouselTarget(cursor,shelf.count);
+            int begin=std::max(0,(int)std::floor(horizontal)-1),last=std::min((int)shelf.count,(int)std::floor(horizontal)+6);
+            for(int col=begin;col<last;++col) card(shelf.first+(size_t)col,366+(int)std::lround((col-horizontal)*(376+(int)std::lround(72*(1-expanded)))),y+34,false);
+            c.text(std::to_string(cursor+1)+" / "+std::to_string(shelf.count),1725-shift,y,17,muted,130);
         }
     } else {
-    const size_t first=resultFirst(v.selected);
-    for(size_t i=first;i<v.videos.size() && i<first+ResultColumns*ResultRows;++i) {
-        const int x=354+(int)((i-first)%ResultColumns)*492,y=190+(int)((i-first)/ResultColumns)*370;
-        const bool active=i==v.selected && !v.sidebar;
-        uint32_t border=active?red:background;c.roundedRect({x-4,y-4,468,334},22,border);c.roundedRect({x,y,460,326},18,0xff173550);
-        const auto image=v.thumbnails.find(v.videos[i].id);
-        if(image!=v.thumbnails.end() && image->second) c.roundImageTop(*image->second,{x,y,460,259},18,border);
-        else {c.roundedRect({x,y,460,259},18,0xff204968);c.playIcon(x+210,y+110,36,muted);}
-        if(active) c.marquee(v.videos[i].title,x+14,y+265,21,white,432,v.selectedSeconds);else c.text(v.videos[i].title,x+14,y+265,21,white,432);
-        const bool favorite=v.library && v.library->favorite(v.videos[i].id);
-        c.text((favorite?"Saved · ":"")+(v.videos[i].badge.empty()?"":v.videos[i].badge+" · ")+v.videos[i].channel,x+14,y+298,17,muted,432);
+        int cols=v.shorts?5:ResultColumns,spacing=v.shorts?318:376+(int)std::lround(72*(1-expanded)),rowHeight=v.shorts?680:370;
+        double target=v.shorts?(double)(v.selected/cols):(double)(resultFirst(v.selected)/cols);double offset=v.verticalOffset<0?target:v.verticalOffset;
+        int first=std::max(0,(int)std::floor(offset)-1),end=std::min((int)((v.videos.size()+cols-1)/cols),(int)std::floor(offset)+(v.shorts?3:4));
+        for(int row=first;row<end;++row) for(int col=0;col<cols;++col) card((size_t)row*cols+col,354+col*spacing,190+(int)std::lround((row-offset)*rowHeight),v.shorts);
     }
-    }
-    if(v.videos.empty()) {
-        c.text(v.busy?"Loading videos...":"No videos here yet",440,330,36,white,1100);
-        c.text(v.menu==Favorites?"Press SQUARE on any video to save a favorite.":v.menu==LocalHistory?"Played videos appear here.":"Press TRIANGLE to search for something you enjoy.",440,400,25,muted,1100,2);
-    }
-    if(!v.videos.empty()) c.text(std::to_string(v.selected+1)+" / "+std::to_string(v.videos.size()),1700,133,22,muted,150);
-    c.rect(340,944,1520,2,0xff333333);
-    if(!v.sidebar && !v.channelList && v.selected<v.videos.size()) {
-        c.marquee(v.videos[v.selected].title,356,953,24,white,1480,v.selectedSeconds);
-        c.marquee(v.description.empty()?v.status:v.description,356,988,21,muted,1480,v.selectedSeconds);
-    }else c.text(v.toast.empty()?v.status:v.toast,356,967,23,v.toast.empty()?muted:white,1480,2);
-    c.text("D-pad  Browse     CROSS  Open     R1  More / Retry     SQUARE  Favorite     TRIANGLE  Search     CIRCLE  Sidebar",356,1036,18,muted,1480);
+    c.clip({0,0,1920,1080});
+    if(v.videos.empty()) {c.text(v.busy?"Loading videos...":"No videos here yet",440,330,36,white,1100);c.text("Press TRIANGLE to search or LEFT for the menu.",440,400,25,muted,1100,2);}
+    if(!v.videos.empty()) c.text(std::to_string(v.selected+1)+" / "+std::to_string(v.videos.size()),1700-shift,133,22,muted,150);
+    c.rect(340,944,1520-shift,2,0xff333333);
+    if(!v.sidebar && !v.channelList && v.selected<v.videos.size()) {c.marquee(v.videos[v.selected].title,356,953,24,white,1480-shift,v.selectedSeconds);c.marquee(v.description.empty()?v.status:v.description,356,988,21,muted,1480-shift,v.selectedSeconds);}
+    else c.text(v.toast.empty()?v.status:v.toast,356,967,23,v.toast.empty()?muted:white,1480-shift,2);
+    c.text("D-pad  Browse     CROSS  Open     R1  More     TRIANGLE  Search     LEFT / CIRCLE  Menu",356,1036,18,muted,1480-shift);c.origin(0);
 }
 void drawKeyboard(Canvas& c,const Keyboard& k) {
     c.rect(310,170,1570,825,0xff102941);c.text("Search YouTube",390,210,38,white,1330);

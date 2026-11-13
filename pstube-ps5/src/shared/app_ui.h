@@ -13,6 +13,7 @@ public:
     Canvas();~Canvas();
     bool loadFont(const char* path);
     void surface(cube::Surface value) {surface_=value;clip_={0,0,value.width,value.height};}
+    void origin(int x,int y=0) {originX_=x;originY_=y;}
     void clip(Rect value) {clip_=value;}
     void roundedRect(Rect view,int radius,uint32_t color);
     void roundImageTop(const Image& value,Rect view,int radius,uint32_t outside);
@@ -28,7 +29,7 @@ private:
     friend void drawPlayer(Canvas&,const Video&,const Image&,bool,bool,bool,uint64_t,unsigned,int,int,bool,bool,bool,EndMode);
     friend void drawPlaybackDebug(Canvas&,const std::vector<std::string>&);
     struct Impl;Impl* impl_;
-    cube::Surface surface_{};Rect clip_{0,0,8192,8192};
+    int originX_=0,originY_=0;cube::Surface surface_{};Rect clip_{0,0,8192,8192};
 };
 enum Menu {Home=0,Search,Subscriptions,Channels,AccountHistory,Playlists,Liked,Music,Gaming,Live,News,Shorts,Favorites,LocalHistory,Settings};
 constexpr int MenuCount=15;
@@ -42,7 +43,7 @@ struct BrowseView {
     size_t selected=0;
     bool busy=false,linked=false,channelList=false;
     std::vector<Shelf> shelves;std::vector<double> shelfOffsets;
-    std::string accountName,description;double selectedSeconds=0;
+    std::string accountName,description;double selectedSeconds=0,sidebarExpansion=-1,verticalOffset=-1;bool shorts=false;
     std::shared_ptr<Image> accountImage;
 };
 void drawBrowse(Canvas& canvas,const BrowseView& view);
