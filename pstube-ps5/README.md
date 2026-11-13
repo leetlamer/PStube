@@ -3,13 +3,13 @@
 An ad-free YouTube experience for PS5. Requires active OnionHEN and websrv
 (Homebrew Launcher); tested with OnionHEN 0.9.0 and websrv 0.34.
 
-Native PStube beta 0.19 for the owner-tested PS5 Pro firmware 13.00 environment,
+Native PStube beta 0.20 for the owner-tested PS5 Pro firmware 13.00 environment,
 OnionHEN 0.9.0 / websrv 0.34. Standalone YouTube browsing and software-decoded
 playback, accounts, seeking, SponsorBlock, network preferences and TV interface.
 This test build adds four buffer presets, four-column result cards and available
 channel/view/date/reaction/subscriber information.
 
-[Beta guide](docs/BETA_V019.md) · [Console results](docs/BETA_V019_TEST_RESULTS.md)
+[Beta guide](docs/BETA_V020.md) · [Console results](docs/BETA_V020_TEST_RESULTS.md)
 · [Feature status](docs/BETA_FEATURE_MATRIX.md)
 
 Install the complete `PStube-PS5-Test` folder from the beta ZIP under
