@@ -3,6 +3,7 @@
 #include "buffer_policy.h"
 #include <functional>
 #include <unistd.h>
+#include <time.h>
 extern "C" {
 #include <libavformat/avio.h>
 }
@@ -49,7 +50,7 @@ inline Document performRequest(const smarttube::Request& request,size_t limit=4*
 }
 class CurlStream {
     pthread_mutex_t mutex_=PTHREAD_MUTEX_INITIALIZER;pthread_cond_t changed_=PTHREAD_COND_INITIALIZER;pthread_t thread_{};
-    size_t capacity_=8*1024*1024,startupBytes_=1,resumeBytes_=1;bool primed_=false;std::function<void(bool)> buffering_;uint8_t* data_=nullptr;size_t read_=0,count_=0;bool stop_=false,done_=false,started_=false,failed_=false;
+    size_t capacity_=8*1024*1024,startupBytes_=1,resumeBytes_=1;bool primed_=false;std::function<void(bool)> buffering_;std::function<bool()> waitTick_;uint8_t* data_=nullptr;size_t read_=0,count_=0;bool stop_=false,done_=false,started_=false,failed_=false;
     std::atomic<bool> cancelled_{false};bool hls_=false;
     int64_t offset_=0,length_=-1,rangeStart_=-1;long headerStatus_=0;bool headersReady_=false;
     std::string url_,agent_;uint64_t downloaded_=0,consumed_=0,faultAt_=0;bool faulted_=false;BenchLog log_;
@@ -142,6 +143,7 @@ public:
         auto p=BufferPolicy::media(bitrate,audio,live,level);capacity_=p.capacity;startupBytes_=p.startup;resumeBytes_=p.resume;buffering_=std::move(buffering);
         log_("BUFFER policy audio=%d live=%d bitrate=%u capacity=%zu startup=%zu resume=%zu",audio,live,bitrate,capacity_,startupBytes_,resumeBytes_);
     }
+    void waitTick(std::function<bool()> tick) {waitTick_=std::move(tick);}
     bool ready() {pthread_mutex_lock(&mutex_);bool ready=count_>=startupBytes_ || done_ || stop_;pthread_mutex_unlock(&mutex_);return ready;}
     bool start(const std::string& url,const std::string& agent,bool hls=false) {
         hls_=hls;
@@ -154,7 +156,12 @@ public:
         size_t target=!self.primed_?self.startupBytes_:stalled?self.resumeBytes_:1;
         double began=stalled?benchmarkTime():0;
         if(stalled) {if(self.buffering_) self.buffering_(true);self.log_("BUFFER wait_begin resume_bytes=%zu",target);}
-        while(self.count_<target && !self.done_ && !self.stop_) pthread_cond_wait(&self.changed_,&self.mutex_);
+        while(self.count_<target && !self.done_ && !self.stop_) {
+            if(!self.waitTick_) {pthread_cond_wait(&self.changed_,&self.mutex_);continue;}
+            timespec until{};clock_gettime(CLOCK_REALTIME,&until);until.tv_nsec+=50000000;if(until.tv_nsec>=1000000000) {++until.tv_sec;until.tv_nsec-=1000000000;}
+            pthread_cond_timedwait(&self.changed_,&self.mutex_,&until);
+            if(self.count_<target && !self.done_ && !self.stop_) {pthread_mutex_unlock(&self.mutex_);bool keep=self.waitTick_();pthread_mutex_lock(&self.mutex_);if(!keep) self.stop_=true;}
+        }
         if(stalled) {if(self.buffering_) self.buffering_(false);self.log_("BUFFER wait_end milliseconds=%.1f bytes=%zu",(benchmarkTime()-began)*1000,self.count_);}
         self.primed_=true;
         size_t n=self.count_;if(n>(size_t)size) n=(size_t)size;if(n>self.capacity_-self.read_) n=self.capacity_-self.read_;

@@ -19,6 +19,7 @@
 #include "player_features.h"
 #include "seek_timeline.h"
 #include "seek_ui.h"
+#include "seek_preview.h"
 #include "document_job.h"
 #include "network_preferences.h"
 #include "network_ui.h"
@@ -260,14 +261,18 @@ bool presentLocal(void* opaque,const AVFrame* picture,SwsContext* scaler,unsigne
     #endif
     if(state.pcm && (pressed&PS5_PAD_BUTTON_CROSS)) {
         state.paused=true;state.pcm->pause(true);logLine("PLAYER paused=1");
+        std::vector<uint32_t> pausedBase((size_t)state.video->width*state.video->height,0);int pauseW=probe::fitWidth(picture->width,picture->height,state.video->width,state.video->height),pauseH=probe::fitHeight(picture->width,picture->height,state.video->width,state.video->height);
+        uint8_t* pausePlanes[]={reinterpret_cast<uint8_t*>(pausedBase.data()+((state.video->height-pauseH)/2)*state.video->width+(state.video->width-pauseW)/2),nullptr,nullptr,nullptr};int pauseStrides[]={(int)state.video->width*4,0,0,0};
+        if(sws_scale(scaler,picture->data,picture->linesize,0,picture->height,pausePlanes,pauseStrides)!=pauseH) {state.pcm->pause(false);return false;}
+        memcpy(state.video->linear,pausedBase.data(),pausedBase.size()*4);
         #ifdef PSTUBE_PROTOTYPE
-        if(state.controls) {state.controls(true,true,number);if(!state.video->frame(state.flips%2,state.flips)) return false;++state.flips;}
+        if(state.controls) {memcpy(state.video->linear,pausedBase.data(),pausedBase.size()*4);state.controls(true,true,number);if(!state.video->frame(state.flips%2,state.flips)) return false;++state.flips;}
         #endif
         while(state.paused) {usleep(16000);buttons=state.controller->read();pressed=buttons&~state.previous;state.previous=buttons;
             #ifdef PSTUBE_PROTOTYPE
             if(state.controlsInput) pressed=state.controlsInput(pressed);
             if(state.cancelled || state.next || state.previousVideo) state.paused=false;
-            if(state.controls) {state.controls(true,true,number);if(!state.video->frame(state.flips%2,state.flips)) {state.cancelled=true;state.paused=false;}else ++state.flips;}
+            if(state.controls) {memcpy(state.video->linear,pausedBase.data(),pausedBase.size()*4);state.controls(true,true,number);if(!state.video->frame(state.flips%2,state.flips)) {state.cancelled=true;state.paused=false;}else ++state.flips;}
             #endif
             if(pressed&PS5_PAD_BUTTON_R1) {state.next=true;state.paused=false;}if(pressed&PS5_PAD_BUTTON_L1) {state.previousVideo=true;state.paused=false;}
             if(pressed&PS5_PAD_BUTTON_CROSS) state.paused=false;
@@ -312,7 +317,7 @@ bool presentLocal(void* opaque,const AVFrame* picture,SwsContext* scaler,unsigne
 }
 int main(int argc,char** argv) {
     (void)argc;(void)argv;
-    openLog();logLine("PStube PS5 Platform Test 0.19; target=PS5 Pro FW13.00 sdk=v0.45");
+    openLog();logLine("PStube PS5 Platform Test 0.20; target=PS5 Pro FW13.00 sdk=v0.45");
     logLine("log=%s pid=%d uid=%d",logPath,getpid(),getuid());
     struct utsname os{};if(uname(&os)==0) logLine("os=%s release=%s machine=%s",os.sysname,os.release,os.machine);
     auto model=reinterpret_cast<int(*)(char*)>(dlsym(RTLD_DEFAULT,"sceKernelGetHwModelName"));

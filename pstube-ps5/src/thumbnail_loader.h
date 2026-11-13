@@ -2,24 +2,32 @@
 #include <deque>
 #include <set>
 #include "content_services.h"
+#include "player_features.h"
+#include "shared/tv_oauth.h"
 namespace probe {
-// Two image workers plus a separate optional DeArrow worker keep navigation and originals responsive.
+// Independent image, branding and metadata workers keep navigation responsive.
 class ThumbnailLoader {
     struct Job {std::string id,url;unsigned generation;bool needTitle=false,dearrow=false,titles=true,thumbnails=true,portrait=false;};
-    struct Result {std::string id;std::shared_ptr<smarttube::Image> image;unsigned generation;std::string title{},author{};bool alternative=false;};
+    struct Result {std::string id;std::shared_ptr<smarttube::Image> image;unsigned generation;std::string title{},author{};bool alternative=false;std::shared_ptr<smarttube::PlayerFeatures> metadata{};};
     pthread_mutex_t mutex_=PTHREAD_MUTEX_INITIALIZER;pthread_cond_t changed_=PTHREAD_COND_INITIALIZER;
-    struct Worker {ThumbnailLoader* owner=nullptr;bool branding=false;};Worker context_[3]{};pthread_t workers_[3]{};unsigned started_=0,generation_=0;bool stop_=false,dearrow_=false,titles_=true,thumbnails_=true;
-    std::deque<Job> jobs_,branding_;std::set<std::string> branded_;std::map<std::string,std::string> alternatives_;std::atomic<unsigned> brandingRequests_{0},brandingSuccess_{0},brandingUpdates_{0},brandingCompleted_{0},brandingTitles_{0},brandingImages_{0};std::deque<Result> results_;std::set<std::string> pending_;std::map<std::string,double> retry_;
+    struct Worker {ThumbnailLoader* owner=nullptr;bool branding=false,metadata=false;};Worker context_[4]{};pthread_t workers_[4]{};unsigned started_=0,generation_=0;bool stop_=false,dearrow_=false,titles_=true,thumbnails_=true;
+    std::deque<Job> jobs_,branding_,details_;std::set<std::string> detailed_;std::set<std::string> branded_;std::map<std::string,std::string> alternatives_;std::atomic<unsigned> metadataCompleted_{0},brandingRequests_{0},brandingSuccess_{0},brandingUpdates_{0},brandingCompleted_{0},brandingTitles_{0},brandingImages_{0};std::deque<Result> results_;std::set<std::string> pending_;std::map<std::string,double> retry_;
     std::atomic<bool> cancelled_{false};
-    static void* entry(void* p) {auto& context=*static_cast<Worker*>(p);context.owner->work(context.branding);return nullptr;}
-    void work(bool brandingWorker) {
+    static void* entry(void* p) {auto& context=*static_cast<Worker*>(p);context.owner->work(context.branding,context.metadata);return nullptr;}
+    void work(bool brandingWorker,bool metadataWorker) {
         CURL* connection=curl_easy_init();unsigned networkEpoch=console_curl_network_generation();
         for(;;) {
-            pthread_mutex_lock(&mutex_);auto& queue=brandingWorker?branding_:jobs_;while(queue.empty() && !stop_) pthread_cond_wait(&changed_,&mutex_);
+            pthread_mutex_lock(&mutex_);auto& queue=metadataWorker?details_:brandingWorker?branding_:jobs_;while(queue.empty() && !stop_) pthread_cond_wait(&changed_,&mutex_);
             if(stop_) {pthread_mutex_unlock(&mutex_);break;}Job job=queue.front();queue.pop_front();if(job.generation!=generation_) {pthread_mutex_unlock(&mutex_);continue;}pthread_mutex_unlock(&mutex_);
             unsigned currentNetwork=console_curl_network_generation();if(networkEpoch!=currentNetwork) {if(connection) curl_easy_cleanup(connection);connection=curl_easy_init();networkEpoch=currentNetwork;}
             smarttube::Request request;request.url=job.url;request.httpGet=true;request.userAgent="PStube PS5";
-            if(!brandingWorker) {
+            if(metadataWorker) {
+                request=smarttube::featureRequest("next","\"videoId\":"+smarttube::quoteJson(job.id));request.userAgent=smarttube::tvUserAgent(0);
+                auto document=performRequest(request,2*1024*1024,6,&cancelled_,connection);smarttube::Json json;std::string error;auto details=std::make_shared<smarttube::PlayerFeatures>();
+                if(document.error.empty() && smarttube::parseJson(document.body,json,error)) details->next(json);
+                if(details->channelName.empty() || details->channelName=="Channel") {request={};request.httpGet=true;request.url="https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D"+job.id+"&format=json";auto author=performRequest(request,64*1024,4,&cancelled_,connection);if(smarttube::parseJson(author.body,json,error)) details->channelName=json.string("author_name");}
+                pthread_mutex_lock(&mutex_);if(job.generation==generation_ && results_.size()<32) {Result result{job.id,{},job.generation};result.metadata=details;if(!details->channelName.empty() || !details->likes.empty()) ++metadataCompleted_;results_.push_back(std::move(result));}pthread_mutex_unlock(&mutex_);
+            }else if(!brandingWorker) {
             auto document=performRequest(request,512*1024,8,&cancelled_,connection);
             auto image=document.error.empty()?smarttube::decodeThumbnail(document.body,job.portrait?360:640,job.portrait?640:360):nullptr;
             pthread_mutex_lock(&mutex_);if(job.generation==generation_) {pending_.erase(job.id);if(!image) retry_[job.id]=benchmarkTime()+30;if(results_.size()<32) results_.push_back({job.id,image,job.generation});}pthread_mutex_unlock(&mutex_);
@@ -28,7 +36,7 @@ class ThumbnailLoader {
                 auto metadata=performRequest(request,64*1024,6,&cancelled_,connection);smarttube::Json json;std::string error;
                 if(smarttube::parseJson(metadata.body,json,error)) {auto title=json.string("title"),author=json.string("author_name");if(!title.empty() && title.size()<1024 && author.size()<256) {pthread_mutex_lock(&mutex_);if(job.generation==generation_ && results_.size()<32) results_.push_back({job.id,{},job.generation,title,author});pthread_mutex_unlock(&mutex_);}}
             }
-            if(job.dearrow && !cancelled_) {pthread_mutex_lock(&mutex_);if(started_==3 && job.generation==generation_ && branding_.size()<24 && !branded_.count(job.id)) {branded_.insert(job.id);branding_.push_back(job);pthread_cond_broadcast(&changed_);}pthread_mutex_unlock(&mutex_);}
+            if(job.dearrow && !cancelled_) {pthread_mutex_lock(&mutex_);if(started_>=3 && job.generation==generation_ && branding_.size()<24 && !branded_.count(job.id)) {branded_.insert(job.id);branding_.push_back(job);pthread_cond_broadcast(&changed_);}pthread_mutex_unlock(&mutex_);}
             }else if(job.dearrow && !cancelled_) {++brandingRequests_;
                 request.url="https://sponsor.ajay.app/api/branding?videoID="+job.id;
                 auto metadata=performRequest(request,64*1024,6,&cancelled_,connection);smarttube::Json json;std::string error;
@@ -44,9 +52,10 @@ class ThumbnailLoader {
     }
 public:
     ThumbnailLoader() {
-        for(unsigned i=0;i<3;++i) {context_[started_]={this,i==2};pthread_attr_t attr;if(pthread_attr_init(&attr)) break;int rc=pthread_attr_setstacksize(&attr,2*1024*1024);if(!rc) rc=pthread_create(&workers_[started_],&attr,entry,&context_[started_]);pthread_attr_destroy(&attr);if(!rc) ++started_;else break;}
+        for(unsigned i=0;i<4;++i) {context_[started_]={this,i==2,i==3};pthread_attr_t attr;if(pthread_attr_init(&attr)) break;int rc=pthread_attr_setstacksize(&attr,2*1024*1024);if(!rc) rc=pthread_create(&workers_[started_],&attr,entry,&context_[started_]);pthread_attr_destroy(&attr);if(!rc) ++started_;else break;}
     }
     void dearrow(bool enabled,bool titles=true,bool thumbnails=true) {pthread_mutex_lock(&mutex_);dearrow_=enabled;titles_=titles;thumbnails_=thumbnails;pthread_mutex_unlock(&mutex_);}
+    unsigned metadataCompleted() const {return metadataCompleted_.load();}
     unsigned brandingTitles() const {return brandingTitles_.load();}
     unsigned brandingImages() const {return brandingImages_.load();}
     unsigned brandingCompleted() const {return brandingCompleted_.load();}
@@ -56,17 +65,19 @@ public:
     unsigned workers() const {return started_;}
     void shutdown() {if(stop_) return;cancelled_=true;pthread_mutex_lock(&mutex_);stop_=true;pthread_cond_broadcast(&changed_);pthread_mutex_unlock(&mutex_);for(unsigned i=0;i<started_;++i) pthread_join(workers_[i],nullptr);}
     ~ThumbnailLoader() {shutdown();pthread_cond_destroy(&changed_);pthread_mutex_destroy(&mutex_);}
-    void clear() {pthread_mutex_lock(&mutex_);++generation_;jobs_.clear();branding_.clear();branded_.clear();alternatives_.clear();results_.clear();pending_.clear();retry_.clear();pthread_mutex_unlock(&mutex_);}
+    void clear() {pthread_mutex_lock(&mutex_);++generation_;jobs_.clear();branding_.clear();details_.clear();detailed_.clear();branded_.clear();alternatives_.clear();results_.clear();pending_.clear();retry_.clear();pthread_mutex_unlock(&mutex_);}
     void visible(const std::vector<smarttube::Video>& items,size_t first,size_t count,const std::map<std::string,std::shared_ptr<smarttube::Image>>& cache,bool portrait=false) {
         pthread_mutex_lock(&mutex_);std::set<std::string> wanted;
         for(size_t i=first;i<items.size() && i<first+count;++i) wanted.insert(items[i].id);
         for(auto job=jobs_.begin();job!=jobs_.end();) {if(!wanted.count(job->id)) {pending_.erase(job->id);job=jobs_.erase(job);}else ++job;}
         for(size_t i=first;i<items.size() && i<first+count;++i) if(!cache.count(items[i].id) && !pending_.count(items[i].id) && (!retry_.count(items[i].id) || retry_[items[i].id]<=benchmarkTime()) && items[i].thumbnail.compare(0,8,"https://")==0 && jobs_.size()<24) {jobs_.push_back({items[i].id,dearrow_ && thumbnails_ && alternatives_.count(items[i].id)?alternatives_[items[i].id]:items[i].thumbnail,generation_,items[i].title=="Shorts video",dearrow_,titles_,thumbnails_,portrait});pending_.insert(items[i].id);}
+        for(auto job=details_.begin();job!=details_.end();) {if(!wanted.count(job->id)) {detailed_.erase(job->id);job=details_.erase(job);}else ++job;}
+        if(started_==4) for(size_t i=first;i<items.size() && i<first+count;++i) {const auto& item=items[i];if(item.id.size()==11 && item.browseId.empty() && !detailed_.count(item.id) && details_.size()<24) {detailed_.insert(item.id);details_.push_back({item.id,{},generation_});}}
         pthread_cond_broadcast(&changed_);pthread_mutex_unlock(&mutex_);
     }
     unsigned drain(std::map<std::string,std::shared_ptr<smarttube::Image>>& cache,const std::set<std::string>& visible,std::vector<smarttube::Video>* items=nullptr) {
         unsigned completed=0;pthread_mutex_lock(&mutex_);
-        while(!results_.empty()) {auto result=std::move(results_.front());results_.pop_front();if(result.generation!=generation_) continue;if(result.alternative) {++brandingUpdates_;if(result.image) ++brandingImages_;if(!result.title.empty()) ++brandingTitles_;}if(items && !result.title.empty()) for(auto& item:*items) if(item.id==result.id) {item.title=result.title;if(!result.author.empty()) item.channel=result.author;}if(!result.image) continue;
+        while(!results_.empty()) {auto result=std::move(results_.front());results_.pop_front();if(result.generation!=generation_) continue;if(result.metadata && items) for(auto& item:*items) if(item.id==result.id) result.metadata->apply(item);if(result.alternative) {++brandingUpdates_;if(result.image) ++brandingImages_;if(!result.title.empty()) ++brandingTitles_;}if(items && !result.title.empty()) for(auto& item:*items) if(item.id==result.id) {item.title=result.title;if(!result.author.empty()) item.channel=result.author;}if(!result.image) continue;
             if(cache.size()>=64 && !cache.count(result.id)) {auto old=cache.begin();while(old!=cache.end() && visible.count(old->first)) ++old;if(old!=cache.end()) cache.erase(old);else continue;}
             cache[result.id]=std::move(result.image);++completed;
         }pthread_mutex_unlock(&mutex_);return completed;

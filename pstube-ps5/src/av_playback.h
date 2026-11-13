@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <algorithm>
 #include "local_playback.h"
 #include "pcm_queue.h"
@@ -20,7 +21,7 @@ inline AVCodecContext* openTrack(AVFormatContext* input,int track,BenchLog log,i
     if(rc<0) {log("AV open_decoder track=%d rc=%d",track,rc);avcodec_free_context(&decoder);}
     else log("AV decoder track=%d codec=%s threads=%d active_thread_type=%d",track,avcodec_get_name(decoder->codec_id),decoder->thread_count,decoder->active_thread_type);return decoder;
 }
-inline bool playAv(const char* path,PresentPicture present,void* display,PcmQueue& pcm,BenchLog log,AVIOContext* external=nullptr,unsigned maxPictures=0,bool videoOnly=false,int outputWidth=1920,int outputHeight=1080,bool recoverLate=false,bool liveTimeline=false,double* mediaPosition=nullptr,double startSeconds=0,VideoStreamMetrics* metrics=nullptr,int decoderThreads=8,int scalerThreads=2) {
+inline bool playAv(const char* path,PresentPicture present,void* display,PcmQueue& pcm,BenchLog log,AVIOContext* external=nullptr,unsigned maxPictures=0,bool videoOnly=false,int outputWidth=1920,int outputHeight=1080,bool recoverLate=false,bool liveTimeline=false,double* mediaPosition=nullptr,double startSeconds=0,VideoStreamMetrics* metrics=nullptr,int decoderThreads=8,int scalerThreads=2,std::function<bool()> pollPlayback={}) {
     AVFormatContext* input=nullptr;AVCodecContext* video=nullptr;AVCodecContext* audio=nullptr;SwsContext* scaler=nullptr;SwrContext* resampler=nullptr;
     AVPacket* packet=av_packet_alloc();AVFrame* frame=av_frame_alloc();bool ok=packet && frame;unsigned pictures=0,audioFrames=0,late=0,decodedPictures=0,droppedPictures=0;bool limited=false;double anchor=0,maxSkew=0,firstPts=0;bool haveFirstPts=false;
     FILE* file=external?nullptr:fopen(path,"rb");AVIOContext* io=external;
@@ -67,13 +68,13 @@ inline bool playAv(const char* path,PresentPicture present,void* display,PcmQueu
                 if(frame->width!=video->width || frame->height!=video->height || frame->format!=video->pix_fmt) {av_frame_unref(frame);log("AV picture_layout_changed");return false;}
                 double rawPts=frame->best_effort_timestamp==AV_NOPTS_VALUE?startSeconds:frame->best_effort_timestamp*av_q2d(input->streams[vi]->time_base);
                 if(startSeconds>0 && rawPts+0.00001<startSeconds) {av_frame_unref(frame);continue;}
-                if(videoOnly && !anchor) {pcm.pause(false);double wait=benchmarkTime();while(!pcm.firstOutput() && !pcm.failed() && benchmarkTime()-wait<10) usleep(1000);if(!pcm.firstOutput() || pcm.failed()) {av_frame_unref(frame);log("AV audio_start_failed");return false;}}
+                if(videoOnly && !anchor) {pcm.pause(false);double wait=benchmarkTime();while(!pcm.firstOutput() && !pcm.failed() && benchmarkTime()-wait<10) {if(pollPlayback && !pollPlayback()) {av_frame_unref(frame);return false;}usleep(1000);}if(!pcm.firstOutput() || pcm.failed()) {av_frame_unref(frame);log("AV audio_start_failed");return false;}}
                 double pts=frame->best_effort_timestamp==AV_NOPTS_VALUE?(haveVideoPts?lastVideoPts+1.0/fallbackFps:startSeconds):frame->best_effort_timestamp*av_q2d(input->streams[vi]->time_base);
                 lastVideoPts=pts;haveVideoPts=true;
                 if(liveTimeline) {if(!haveFirstPts) {firstPts=pts;double origin=0;if(pcm.getMediaOrigin(origin) && fabs(origin-pts)<10) firstPts=origin;haveFirstPts=true;log("AV live_origin video_minus_audio_ms=%.3f",(pts-firstPts)*1000);}pts-=firstPts;}
-                ++decodedPictures;double audioStart=pcm.firstOutput();if(audioStart) anchor=audioStart-startSeconds;
+                ++decodedPictures;double audioStart=pcm.firstOutput();if(audioStart) {double audioOrigin=startSeconds;pcm.getMediaOrigin(audioOrigin);anchor=audioStart-audioOrigin;}
                 if(!anchor) anchor=benchmarkTime()-startSeconds;double target=anchor+pts;
-                while(benchmarkTime()<target) usleep(1000);
+                while(benchmarkTime()<target) {if(pcm.failed() || (pollPlayback && !pollPlayback())) {av_frame_unref(frame);return false;}usleep(1000);}
                 double skew=benchmarkTime()-target;if(skew>maxSkew) maxSkew=skew;if(skew>0.025) ++late;
                 if(recoverLate && decodedPictures>4 && skew>0.035) {++droppedPictures;av_frame_unref(frame);continue;}
                 if(mediaPosition) *mediaPosition=std::max(0.0,pts*1000);
