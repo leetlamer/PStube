@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible PStube issue.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: PStube version
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Console and environment
+      description: Console model, firmware and OnionHEN/websrv versions. Do not include network addresses.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps and expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: playback
+    attributes:
+      label: Playback settings, if relevant
+      description: Source resolution/FPS, output mode, buffer preset and whether the problem repeats.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics
+      description: Relevant lines only. Remove accounts, tokens, pairing codes, signed URLs, proxy credentials and private addresses.
