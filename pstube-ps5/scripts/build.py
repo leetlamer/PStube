@@ -31,7 +31,7 @@ def main():
     for library,digest in pins['libraries'].items():assert hashlib.sha256((ports/'lib'/('lib'+library+'.a')).read_bytes()).hexdigest()==digest
     shim=BUILD/'console_curl.o'
     commands.append(run(['/usr/bin/clang',*[f for f in flags if f!='-std=c++17'],'-I'+str(ports/'include'),'-c',APP/'src/console_curl.c','-o',shim]))
-    for name,source,extra in [('PStube-PS5-Test-v0.19',APP/'src/main.cpp',['-DPSTUBE_PROTOTYPE','-DPSTUBE_AV_PLAYBACK','-DPSTUBE_LOCAL_PLAYBACK','-I'+str(APP/'build/codecs/install/include'),'-I'+str(ports/'include')]),('PStube-PS5-Platform-v0.19',APP/'src/main.cpp',[]),('sdk-hello-world',SDK/'samples/hello_world/main.c',[])]:
+    for name,source,extra in [('PStube-PS5-Test-v0.20',APP/'src/main.cpp',['-DPSTUBE_PROTOTYPE','-DPSTUBE_AV_PLAYBACK','-DPSTUBE_LOCAL_PLAYBACK','-I'+str(APP/'build/codecs/install/include'),'-I'+str(ports/'include')]),('PStube-PS5-Platform-v0.20',APP/'src/main.cpp',[]),('sdk-hello-world',SDK/'samples/hello_world/main.c',[])]:
         obj=BUILD/(name+'.o');elf=DIST/(name+'.elf')
         compiler='/usr/bin/clang' if source.suffix=='.c' else cc
         active=[f for f in flags if f!='-std=c++17'] if source.suffix=='.c' else flags

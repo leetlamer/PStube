@@ -29,7 +29,7 @@ done
 ./build/account-beta-test
 /usr/bin/clang++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -Isrc tests/features_v013_test.cpp src/shared/core.cpp src/shared/json.cpp -o build/features-v013-test
 ./build/features-v013-test
-/usr/bin/clang++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -Isrc tests/thumbnail_async_test.cpp src/shared/json.cpp -lpthread -o build/thumbnail-async-test
+/usr/bin/clang++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -Isrc tests/thumbnail_async_test.cpp src/shared/json.cpp src/shared/core.cpp -lpthread -o build/thumbnail-async-test
 ./build/thumbnail-async-test
 /usr/bin/clang++ -std=c++17 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined -Isrc -I../vendor/pacbrew-v0.40.2/user/homebrew/include tests/network_preferences_test.cpp src/shared/json.cpp -o build/network-preferences-test
 ./build/network-preferences-test
