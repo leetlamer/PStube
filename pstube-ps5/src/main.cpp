@@ -312,7 +312,7 @@ bool presentLocal(void* opaque,const AVFrame* picture,SwsContext* scaler,unsigne
 }
 int main(int argc,char** argv) {
     (void)argc;(void)argv;
-    openLog();logLine("PStube PS5 Platform Test 0.17; target=PS5 Pro FW13.00 sdk=v0.45");
+    openLog();logLine("PStube PS5 Platform Test 0.19; target=PS5 Pro FW13.00 sdk=v0.45");
     logLine("log=%s pid=%d uid=%d",logPath,getpid(),getuid());
     struct utsname os{};if(uname(&os)==0) logLine("os=%s release=%s machine=%s",os.sysname,os.release,os.machine);
     auto model=reinterpret_cast<int(*)(char*)>(dlsym(RTLD_DEFAULT,"sceKernelGetHwModelName"));

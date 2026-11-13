@@ -17,17 +17,31 @@ inline std::string videoDescription(const Json& root,unsigned depth=0) {
 struct CaptionTrack {std::string label,language,url;};
 struct CaptionCue {unsigned start=0,end=0;std::string text;};
 struct PlayerFeatures {
-    std::string title,channelId,channelName,channelIcon,commentsToken,chatToken;int reaction=0;bool subscribed=false;std::vector<CaptionTrack> tracks;
+    std::string title,channelId,channelName,channelIcon,commentsToken,chatToken,views,published,likes,dislikes,subscribers;int reaction=0;bool subscribed=false;std::vector<CaptionTrack> tracks;
     void player(const Json& root) {
-        if(auto* details=root.get("videoDetails")) {title=details->string("title");channelId=details->string("channelId");channelName=details->string("author");}
+        if(auto* details=root.get("videoDetails")) {title=details->string("title");channelId=details->string("channelId");channelName=details->string("author");auto count=details->string("viewCount");if(!count.empty()) views=count+" views";}
+        if(auto* micro=jsonPath(root,{"microformat","playerMicroformatRenderer"})) {auto date=micro->string("publishDate");if(date.empty()) date=micro->string("uploadDate");if(!date.empty()) published=date;}
         if(auto* captions=jsonPath(root,{"captions","playerCaptionsTracklistRenderer","captionTracks"})) {
             tracks.clear();for(const auto& track:captions->children) {auto url=track.string("baseUrl");if(url.compare(0,8,"https://") || url.size()>16384) continue;tracks.push_back({nodeText(track.get("name")),track.string("languageCode"),url});}
         }
     }
+    void apply(Video& item) const {
+        if(!channelName.empty()) item.channel=channelName;if(!views.empty()) item.views=views;if(!published.empty()) item.published=published;
+        if(!likes.empty()) item.likes=likes;if(!dislikes.empty()) item.dislikes=dislikes;if(!subscribers.empty()) item.subscribers=subscribers;
+    }
     void next(const Json& root) {
         const auto visit=[&](const auto& self,const Json& node,unsigned depth)->void {
             if(depth>64) return;
-            if(auto* owner=node.get("videoOwnerRenderer")) {auto title=nodeText(owner->get("title"));if(!title.empty()) channelName=title;auto id=firstString(*owner,"browseId");if(id.compare(0,2,"UC")==0) channelId=id;
+            for(const char* key:{"videoPrimaryInfoRenderer","videoMetadataRenderer","slimVideoMetadataRenderer"}) if(auto* metadata=node.get(key)) {
+                if(auto* count=metadata->get("viewCount")) {auto value=nodeText(count->get("videoViewCountRenderer")?jsonPath(*count,{"videoViewCountRenderer","viewCount"}):count);if(!value.empty()) views=value;}
+                auto value=nodeText(metadata->get("viewCountText"));if(!value.empty()) views=value;
+                for(const char* field:{"dateText","publishedTimeText","publishedTime","publishDate"}) {value=nodeText(metadata->get(field));if(value.empty()) if(auto* date=metadata->get(field)) value=firstString(*date,"label");if(!value.empty()) published=value;}
+            }
+            if(auto* count=node.get("likesCount")) {auto value=nodeText(count);if(!value.empty()) likes=value;}
+            if(auto* count=node.get("dislikesCount")) {auto value=nodeText(count);if(!value.empty()) dislikes=value;}
+            if(auto* button=node.get("likeButtonRenderer")) {auto value=nodeText(button->get("likeCountText"));if(value.empty()) if(auto* count=button->get("likeCount")) value=count->text;if(!value.empty()) likes=value;}
+            if(auto* button=node.get("toggleButtonRenderer")) {auto icon=firstString(*button,"iconType"),count=nodeText(button->get("defaultText"));if(count.find_first_of("0123456789")!=std::string::npos) {if(icon=="LIKE") likes=count;if(icon=="DISLIKE") dislikes=count;}}
+            if(auto* owner=node.get("videoOwnerRenderer")) {auto count=nodeText(owner->get("subscriberCountText"));if(!count.empty()) subscribers=count;auto title=nodeText(owner->get("title"));if(!title.empty()) channelName=title;auto id=firstString(*owner,"browseId");if(id.compare(0,2,"UC")==0) channelId=id;
                 if(auto* thumbs=jsonPath(*owner,{"thumbnail","thumbnails"})) for(const auto& thumb:thumbs->children) {auto url=thumb.string("url");if(url.compare(0,8,"https://")==0) channelIcon=url;}
             }
             auto like=node.string("likeStatus");if(like=="LIKE") reaction=1;if(like=="DISLIKE") reaction=-1;

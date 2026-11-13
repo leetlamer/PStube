@@ -8,7 +8,7 @@ public:
     using Sink=bool(*)(void*,const int16_t*);
 private:
     pthread_mutex_t mutex_=PTHREAD_MUTEX_INITIALIZER;pthread_cond_t changed_=PTHREAD_COND_INITIALIZER;
-    pthread_t thread_{};bool started_=false,stop_=false,failed_=false,ending_=false,paused_=false;double pauseStart_=0,pauseTotal_=0;
+    pthread_t thread_{};bool started_=false,stop_=false,failed_=false,ending_=false,paused_=false,userPaused_=false,bufferPaused_=false;double pauseStart_=0,pauseTotal_=0;
     alignas(16) int16_t blocks_[16][2048]{};unsigned read_=0,count_=0,partial_=0;uint64_t submitted_=0,underruns_=0;
     int16_t pending_[2048]{};double first_=0,mediaOrigin_=0;bool haveMediaOrigin_=false;uint64_t pauseEpoch_=0;Sink sink_;void* opaque_;BenchLog log_;
     std::vector<MuteRange> muteRanges_;
@@ -51,7 +51,14 @@ public:
     void mediaOrigin(double pts) {pthread_mutex_lock(&mutex_);if(!haveMediaOrigin_) {mediaOrigin_=pts;haveMediaOrigin_=true;}pthread_mutex_unlock(&mutex_);}
     bool getMediaOrigin(double& pts) {pthread_mutex_lock(&mutex_);pts=mediaOrigin_;bool valid=haveMediaOrigin_;pthread_mutex_unlock(&mutex_);return valid;}
     double firstOutput() {pthread_mutex_lock(&mutex_);double result=first_?first_+pauseTotal_:0;pthread_mutex_unlock(&mutex_);return result;}
-    void pause(bool value) {pthread_mutex_lock(&mutex_);if(value && !paused_) ++pauseEpoch_;if(value && !paused_) pauseStart_=first_?benchmarkTime():0;if(!value && paused_ && pauseStart_) pauseTotal_+=benchmarkTime()-pauseStart_;paused_=value;pthread_cond_broadcast(&changed_);pthread_mutex_unlock(&mutex_);}
+    void updatePauseLocked() {
+        bool value=userPaused_ || bufferPaused_;
+        if(value && !paused_) {++pauseEpoch_;pauseStart_=first_?benchmarkTime():0;}
+        if(!value && paused_ && pauseStart_) pauseTotal_+=benchmarkTime()-pauseStart_;
+        paused_=value;pthread_cond_broadcast(&changed_);
+    }
+    void pause(bool value) {pthread_mutex_lock(&mutex_);userPaused_=value;updatePauseLocked();pthread_mutex_unlock(&mutex_);}
+    void buffering(bool value) {pthread_mutex_lock(&mutex_);bufferPaused_=value;updatePauseLocked();pthread_mutex_unlock(&mutex_);}
     void fail() {pthread_mutex_lock(&mutex_);failed_=true;stop_=true;pthread_cond_broadcast(&changed_);pthread_mutex_unlock(&mutex_);}
     bool failed() {pthread_mutex_lock(&mutex_);bool result=failed_;pthread_mutex_unlock(&mutex_);return result;}
     void finish(bool drain) {

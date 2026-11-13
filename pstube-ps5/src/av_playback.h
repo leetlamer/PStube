@@ -41,7 +41,7 @@ inline bool playAv(const char* path,PresentPicture present,void* display,PcmQueu
             av_opt_set_int(scaler,"sws_flags",SWS_BILINEAR,0);av_opt_set_int(scaler,"threads",std::max(1,std::min(scalerThreads,2)),0);
             if(sws_init_context(scaler,nullptr,nullptr)<0) {sws_freeContext(scaler);scaler=nullptr;}
         }
-        log("AV resources decoder_threads=%d scaler_threads=%d online_cpus=%ld streaming_ring_bytes=%u HDR_output=0",video->thread_count,scalerThreads,sysconf(_SC_NPROCESSORS_ONLN),8u*1024u*1024u);
+        log("AV resources decoder_threads=%d scaler_threads=%d online_cpus=%ld streaming_buffer=bounded_policy HDR_output=0",video->thread_count,scalerThreads,sysconf(_SC_NPROCESSORS_ONLN));
         AVChannelLayout stereo=AV_CHANNEL_LAYOUT_STEREO;
         rc=0;if(audio) rc=swr_alloc_set_opts2(&resampler,&stereo,AV_SAMPLE_FMT_S16,48000,&audio->ch_layout,audio->sample_fmt,audio->sample_rate,0,nullptr);
         ok=scaler && rc>=0 && (!audio || swr_init(resampler)>=0);

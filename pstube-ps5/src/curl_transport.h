@@ -1,5 +1,7 @@
 #pragma once
 #include "console_curl.h"
+#include "buffer_policy.h"
+#include <functional>
 #include <unistd.h>
 extern "C" {
 #include <libavformat/avio.h>
@@ -47,7 +49,7 @@ inline Document performRequest(const smarttube::Request& request,size_t limit=4*
 }
 class CurlStream {
     pthread_mutex_t mutex_=PTHREAD_MUTEX_INITIALIZER;pthread_cond_t changed_=PTHREAD_COND_INITIALIZER;pthread_t thread_{};
-    static constexpr size_t Capacity=8*1024*1024;uint8_t* data_=nullptr;size_t read_=0,count_=0;bool stop_=false,done_=false,started_=false,failed_=false;
+    size_t capacity_=8*1024*1024,startupBytes_=1,resumeBytes_=1;bool primed_=false;std::function<void(bool)> buffering_;uint8_t* data_=nullptr;size_t read_=0,count_=0;bool stop_=false,done_=false,started_=false,failed_=false;
     std::atomic<bool> cancelled_{false};bool hls_=false;
     int64_t offset_=0,length_=-1,rangeStart_=-1;long headerStatus_=0;bool headersReady_=false;
     std::string url_,agent_;uint64_t downloaded_=0,consumed_=0,faultAt_=0;bool faulted_=false;BenchLog log_;
@@ -64,9 +66,9 @@ class CurlStream {
         if(size && count>SIZE_MAX/size) return 0;auto& self=*static_cast<CurlStream*>(opaque);size_t total=size*count,remaining=total;
         if(!self.hls_ && !validRangeResponse(self.headerStatus_,self.offset_,self.rangeStart_)) return 0;
         while(remaining) {
-            pthread_mutex_lock(&self.mutex_);while(self.count_==Capacity && !self.stop_) pthread_cond_wait(&self.changed_,&self.mutex_);
+            pthread_mutex_lock(&self.mutex_);while(self.count_==self.capacity_ && !self.stop_) pthread_cond_wait(&self.changed_,&self.mutex_);
             if(self.stop_) {pthread_mutex_unlock(&self.mutex_);return 0;}
-            size_t at=(self.read_+self.count_)%Capacity,n=Capacity-self.count_;if(n>Capacity-at) n=Capacity-at;if(n>remaining) n=remaining;
+            size_t at=(self.read_+self.count_)%self.capacity_,n=self.capacity_-self.count_;if(n>self.capacity_-at) n=self.capacity_-at;if(n>remaining) n=remaining;
             if(self.faultAt_ && !self.faulted_) n=std::min(n,(size_t)(self.faultAt_-self.downloaded_));
             memcpy(self.data_+at,bytes,n);bytes+=n;remaining-=n;self.count_+=n;self.downloaded_+=n;bool interrupt=self.faultAt_ && !self.faulted_ && self.downloaded_>=self.faultAt_;if(interrupt) self.faulted_=true;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);
             if(interrupt) {self.log_("STREAM diagnostic_interruption=1 received=%llu",(unsigned long long)self.downloaded_);return 0;}
@@ -98,7 +100,7 @@ class CurlStream {
         if(stopped || self.cancelled_ || (!shortResponse && !transient)) break;
         if(length>=0 && resume==length) {rc=CURLE_OK;break;}
         if(retries>=8) {if(shortResponse) rc=CURLE_PARTIAL_FILE;break;}
-        ++retries;self.log_("STREAM reconnect attempt=%u rc=%d status=%ld offset=%lld length=%lld buffered_capacity=%zu",retries,(int)rc,status,(long long)resume,(long long)length,Capacity);
+        ++retries;self.log_("STREAM reconnect attempt=%u rc=%d status=%ld offset=%lld length=%lld buffered_capacity=%zu",retries,(int)rc,status,(long long)resume,(long long)length,self.capacity_);
         pthread_mutex_lock(&self.mutex_);self.offset_=resume;self.headersReady_=false;pthread_mutex_unlock(&self.mutex_);
         // Keep unread bytes in the ring. Resume AFTER all accepted bytes, never after
         // just the consumed cursor, so buffered audio/video is neither lost nor duplicated.
@@ -136,16 +138,27 @@ class CurlStream {
 
 public:
     explicit CurlStream(BenchLog log,uint64_t diagnosticFaultAt=0):faultAt_(diagnosticFaultAt),log_(log) {}
+    void configure(unsigned bitrate,bool audio,bool live,std::function<void(bool)> buffering={},unsigned level=1) {
+        auto p=BufferPolicy::media(bitrate,audio,live,level);capacity_=p.capacity;startupBytes_=p.startup;resumeBytes_=p.resume;buffering_=std::move(buffering);
+        log_("BUFFER policy audio=%d live=%d bitrate=%u capacity=%zu startup=%zu resume=%zu",audio,live,bitrate,capacity_,startupBytes_,resumeBytes_);
+    }
+    bool ready() {pthread_mutex_lock(&mutex_);bool ready=count_>=startupBytes_ || done_ || stop_;pthread_mutex_unlock(&mutex_);return ready;}
     bool start(const std::string& url,const std::string& agent,bool hls=false) {
         hls_=hls;
-        if(url.compare(0,8,"https://")) return false;data_=static_cast<uint8_t*>(malloc(Capacity));if(!data_) return false;url_=url;agent_=agent;
+        if(url.compare(0,8,"https://")) return false;data_=static_cast<uint8_t*>(malloc(capacity_));if(!data_) return false;url_=url;agent_=agent;
         pthread_attr_t attr;int rc=pthread_attr_init(&attr);if(rc) return false;rc=pthread_attr_setstacksize(&attr,2*1024*1024);if(!rc) rc=pthread_create(&thread_,&attr,entry,this);pthread_attr_destroy(&attr);started_=rc==0;return started_;
     }
     static int read(void* opaque,uint8_t* bytes,int size) {
         auto& self=*static_cast<CurlStream*>(opaque);pthread_mutex_lock(&self.mutex_);
-        while(!self.count_ && !self.done_ && !self.stop_) pthread_cond_wait(&self.changed_,&self.mutex_);
-        size_t n=self.count_;if(n>(size_t)size) n=(size_t)size;if(n>Capacity-self.read_) n=Capacity-self.read_;
-        if(n) {memcpy(bytes,self.data_+self.read_,n);self.read_=(self.read_+n)%Capacity;self.count_-=n;self.consumed_+=n;}
+        bool stalled=self.primed_ && !self.count_ && !self.done_ && !self.stop_;
+        size_t target=!self.primed_?self.startupBytes_:stalled?self.resumeBytes_:1;
+        double began=stalled?benchmarkTime():0;
+        if(stalled) {if(self.buffering_) self.buffering_(true);self.log_("BUFFER wait_begin resume_bytes=%zu",target);}
+        while(self.count_<target && !self.done_ && !self.stop_) pthread_cond_wait(&self.changed_,&self.mutex_);
+        if(stalled) {if(self.buffering_) self.buffering_(false);self.log_("BUFFER wait_end milliseconds=%.1f bytes=%zu",(benchmarkTime()-began)*1000,self.count_);}
+        self.primed_=true;
+        size_t n=self.count_;if(n>(size_t)size) n=(size_t)size;if(n>self.capacity_-self.read_) n=self.capacity_-self.read_;
+        if(n) {memcpy(bytes,self.data_+self.read_,n);self.read_=(self.read_+n)%self.capacity_;self.count_-=n;self.consumed_+=n;}
         bool failed=self.failed_;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);return n?(int)n:failed?AVERROR(EIO):AVERROR_EOF;
     }
     static int64_t seek(void* opaque,int64_t offset,int origin) {
@@ -155,9 +168,9 @@ public:
         origin &= ~AVSEEK_FORCE;int64_t base=origin==SEEK_SET?0:origin==SEEK_CUR?(int64_t)self.consumed_:origin==SEEK_END?self.length_:-1;
         if(base<0 || (offset>0 && base>INT64_MAX-offset) || (offset<0 && offset< -base)) {pthread_mutex_unlock(&self.mutex_);return AVERROR(EINVAL);}
         int64_t target=base+offset;if(self.length_>=0 && target>self.length_) {pthread_mutex_unlock(&self.mutex_);return AVERROR(EINVAL);}
-        if(target>=(int64_t)self.consumed_ && (uint64_t)(target-self.consumed_)<=self.count_) {size_t skip=(size_t)(target-self.consumed_);self.read_=(self.read_+skip)%Capacity;self.count_-=skip;self.consumed_=target;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);return target;}
+        if(target>=(int64_t)self.consumed_ && (uint64_t)(target-self.consumed_)<=self.count_) {size_t skip=(size_t)(target-self.consumed_);self.read_=(self.read_+skip)%self.capacity_;self.count_-=skip;self.consumed_=target;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);return target;}
         pthread_mutex_unlock(&self.mutex_);self.cancel();if(self.started_) {pthread_join(self.thread_,nullptr);self.started_=false;}
-        pthread_mutex_lock(&self.mutex_);self.read_=self.count_=0;self.offset_=target;self.consumed_=target;self.stop_=self.done_=self.failed_=self.headersReady_=false;self.cancelled_=false;pthread_mutex_unlock(&self.mutex_);
+        pthread_mutex_lock(&self.mutex_);self.primed_=false;self.read_=self.count_=0;self.offset_=target;self.consumed_=target;self.stop_=self.done_=self.failed_=self.headersReady_=false;self.cancelled_=false;pthread_mutex_unlock(&self.mutex_);
         if(target==self.length_) {self.done_=true;return target;}
         pthread_attr_t attr;int rc=pthread_attr_init(&attr);if(rc) {pthread_mutex_lock(&self.mutex_);self.done_=self.failed_=true;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);return AVERROR(EIO);}rc=pthread_attr_setstacksize(&attr,2*1024*1024);if(!rc) rc=pthread_create(&self.thread_,&attr,entry,&self);pthread_attr_destroy(&attr);self.started_=rc==0;
         if(rc) {pthread_mutex_lock(&self.mutex_);self.done_=self.failed_=true;pthread_cond_broadcast(&self.changed_);pthread_mutex_unlock(&self.mutex_);return AVERROR(EIO);}
@@ -168,7 +181,7 @@ public:
     void close() {
         if(!data_ && !started_) return;cancel();
         if(started_) {pthread_join(thread_,nullptr);started_=false;}
-        log_("STREAM closed downloaded=%llu consumed=%llu bounded_capacity=%zu",(unsigned long long)downloaded_,(unsigned long long)consumed_,Capacity);free(data_);data_=nullptr;
+        log_("STREAM closed downloaded=%llu consumed=%llu bounded_capacity=%zu",(unsigned long long)downloaded_,(unsigned long long)consumed_,capacity_);free(data_);data_=nullptr;
     }
 };
 }
