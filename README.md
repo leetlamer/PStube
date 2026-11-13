@@ -6,7 +6,7 @@
 
 **An ad-free YouTube experience for PlayStation 5.**
 
-PStube is a standalone native homebrew app for PS5 consoles, controller
+PStube is a standalone native homebrew app with a blue TV interface, controller
 navigation, Google account support and software-decoded video playback.
 Current release: **PS5 beta 0.17**.
 
@@ -14,7 +14,7 @@ Current release: **PS5 beta 0.17**.
 
 - A PS5 configured to run compatible homebrew, with **OnionHEN active**.
 - **websrv (Homebrew Launcher)** enabled to launch the app in a foreground graphics context.
-- An internet connection for YouTube. nano DNS or similar recommended - Google login is optional.
+- An internet connection for YouTube. Google login is optional.
 - USB or FTP access to copy the app folder onto the console.
 
 The tested configuration is **PS5 Pro firmware 13.00, OnionHEN 0.9.0 and websrv 0.34**.
@@ -63,10 +63,12 @@ PStube is independent and is not affiliated with Sony or Google.
 
 ## Gaming
 
-Captured on PS5 Pro 13.00
+Captured on PS5 after the visible video thumbnails finished loading.
 
-Main Navigation
 ![PStube Gaming section with loaded video thumbnails](pstube-ps5/branding/pstube-gaming-v017.png)
 
-Playback Controls
-![Playback Controls](https://github.com/leetlamer/PStube/blob/main/pstube-ps5/branding/Playback_Controls.jpg)
+## Playback
+
+Captured on the PS5 with playback paused.
+
+![PStube paused playback with controls and video information](pstube-ps5/branding/pstube-playback-v017.png)
