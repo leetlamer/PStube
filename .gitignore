@@ -17,3 +17,7 @@ reference/
 *pstube*network*.json
 pstube-ps5/assets/*.ivf
 pstube-ps5/assets/*.webm
+*.zip
+*.tar.gz
+*.dSYM/
+pstube-ps5/assets/*.mp4
