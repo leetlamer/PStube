@@ -7,7 +7,7 @@ import json
 ROOT = Path(__file__).resolve().parents[1]
 required = ['README.md', 'LICENSE', 'THIRD_PARTY.md', 'CONTRIBUTING.md',
             'docs/BUILDING.md', 'pstube-ps5/src/main.cpp',
-            'pstube-ps5/docs/BETA_V019.md', 'pstube-ps5/sce_sys/icon0.png']
+            'pstube-ps5/docs/BETA_V020.md', 'pstube-ps5/sce_sys/icon0.png']
 for name in required:
     assert (ROOT / name).is_file(), f'Missing {name}'
 files = [p for p in ROOT.rglob('*') if p.is_file() and '.git' not in p.relative_to(ROOT).parts
