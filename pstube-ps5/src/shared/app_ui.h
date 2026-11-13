@@ -7,6 +7,8 @@
 #include <memory>
 namespace smarttube {
 struct Image {int width=0,height=0;std::vector<uint32_t> pixels;};
+void drawLoadingSpinner(class Canvas& canvas,int width,int height,double seconds);
+std::shared_ptr<Image> decodeThumbnailRegion(const std::string& bytes,Rect crop);
 std::shared_ptr<Image> decodeThumbnail(const std::string& bytes,int targetWidth=640,int targetHeight=360);
 class Canvas {
 public:

@@ -97,7 +97,7 @@ unsigned Canvas::loadIcons() {
 }
 bool Canvas::icon(const std::string& name,Rect view,uint32_t tint) {
     auto found=impl_->icons.find(name);if(found==impl_->icons.end() || view.w<=0 || view.h<=0) return false;auto& image=found->second;view.x+=originX_;view.y+=originY_;
-    for(int y=std::max(0,view.y);y<std::min(surface_.height,view.y+view.h);++y) for(int x=std::max(0,view.x);x<std::min(surface_.width,view.x+view.w);++x) {auto pixel=image.pixels[(size_t)((y-view.y)*image.height/view.h)*image.width+(x-view.x)*image.width/view.w];unsigned alpha=pixel>>24;if(alpha) {auto& dst=surface_.pixels[(size_t)y*surface_.pitch+x];dst=blend(dst,tint,alpha);}}return true;
+    for(int y=std::max(std::max(0,clip_.y),view.y);y<std::min(std::min(surface_.height,clip_.y+clip_.h),view.y+view.h);++y) for(int x=std::max(std::max(0,clip_.x),view.x);x<std::min(std::min(surface_.width,clip_.x+clip_.w),view.x+view.w);++x) {auto pixel=image.pixels[(size_t)((y-view.y)*image.height/view.h)*image.width+(x-view.x)*image.width/view.w];unsigned alpha=pixel>>24;if(alpha) {auto& dst=surface_.pixels[(size_t)y*surface_.pitch+x];dst=blend(dst,tint,alpha);}}return true;
 }
 void Canvas::marquee(const std::string& value,int x,int y,int size,uint32_t color,int width,double seconds) {
     if(!impl_->loaded || size<8 || size>80 || width<=0) return;
@@ -151,6 +151,17 @@ std::shared_ptr<Image> decodeThumbnail(const std::string& bytes,int targetWidth,
     }
     stbi_image_free(decoded);return out;
 }
+void drawLoadingSpinner(Canvas& c,int width,int height,double seconds) {
+    c.origin(0);c.clip({0,0,width,height});c.rect(0,0,width,height,0xff000000);double scale=width/1920.0;
+    for(int i=0;i<12;++i) {double angle=seconds*5+i*6.283185307/12;unsigned brightness=70+i*15;uint32_t color=0xff000000u|(brightness<<16)|(brightness<<8)|brightness;int radius=(int)(8*scale);c.roundedRect({width/2+(int)(sin(angle)*52*scale)-radius,height/2+(int)(cos(angle)*52*scale)-radius,2*radius,2*radius},radius,color);}
+}
+std::shared_ptr<Image> decodeThumbnailRegion(const std::string& bytes,Rect crop) {
+    if(bytes.empty() || bytes.size()>2*1024*1024 || crop.w<1 || crop.h<1 || crop.x<0 || crop.y<0) return {};
+    int w=0,h=0,n=0;if(!stbi_info_from_memory((const stbi_uc*)bytes.data(),(int)bytes.size(),&w,&h,&n) || w<1 || h<1 || w>2048 || h>2048 || crop.w>w || crop.h>h || crop.x>w-crop.w || crop.y>h-crop.h) return {};
+    auto* pixels=stbi_load_from_memory((const stbi_uc*)bytes.data(),(int)bytes.size(),&w,&h,&n,3);if(!pixels) return {};
+    auto out=std::make_shared<Image>();out->width=320;out->height=180;out->pixels.resize(320*180);
+    for(int y=0;y<180;++y) for(int x=0;x<320;++x) {auto* p=pixels+((size_t)(crop.y+y*crop.h/180)*w+crop.x+x*crop.w/320)*3;out->pixels[y*320+x]=0xff000000u|((uint32_t)p[0]<<16)|((uint32_t)p[1]<<8)|p[2];}stbi_image_free(pixels);return out;
+}
 void Canvas::accountQr(const std::string& url,int x,int y,int scale) {
     if(impl_->qrUrl!=url) {
         impl_->qrUrl=url;impl_->qrLayer={};const LoginQr qr(url);
@@ -172,7 +183,7 @@ void drawBrowse(Canvas& c,const BrowseView& v) {
     if(v.linked) c.text("Accounts",140,102,17,muted,125);c.text("PStube",48,151,32,white,220);
     const char* menuIcons[]={"icon_home","action_search","icon_subscriptions","icon_channels","icon_history","icon_playlist","lb_ic_thumb_up","icon_music","icon_gaming","icon_live","icon_news","icon_shorts","icon_playlist","icon_history","icon_settings"};
     for(int i=0;i<MenuCount;++i) {int y=209+i*46;if(v.menu==i) {c.rect(30,y-5,246,43,v.sidebar?0xffeeeeee:0xff343434);c.rect(30,y-5,5,43,red);}c.icon(menuIcons[i],{47,y+8,26,26},v.menu==i && v.sidebar?0xff161616:white);c.text(menuLabel(i),84,y+4,24,v.menu==i && v.sidebar?0xff161616:(v.menu==i?white:muted),187);}
-    c.text("PStube PS5 · Beta 0.19",48,970,19,muted,225);c.text("OPTIONS  Exit",48,1006,19,muted,225);
+    c.text("PStube PS5 · Beta 0.20",48,970,19,muted,225);c.text("OPTIONS  Exit",48,1006,19,muted,225);
     c.origin(shift);c.text(v.heading,354,65,42,white,1400);c.text(v.subtitle,356,123,23,muted,1480);
     if(v.linked) c.text((v.accountName.empty()?"YouTube account":v.accountName)+" logged in",1320-shift,64,24,white,490,2);
     const int clipLeft=320+shift;c.clip({clipLeft,165,1900-clipLeft,760});
