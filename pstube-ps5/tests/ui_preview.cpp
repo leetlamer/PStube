@@ -24,5 +24,7 @@ int main() {
     smarttube::drawAccountOptions(canvas,0,"","Guest",-1,0);save("build/beta-accounts.ppm",pixels);
     std::fill(pixels.begin(),pixels.end(),0xff102030);canvas.marquee("A long UTF-8 title with café and many more words moving across a clipped window",100,100,24,0xffffffff,120,0);auto still=pixels;canvas.rect(100,100,120,45,0xff102030);canvas.marquee("A long UTF-8 title with café and many more words moving across a clipped window",100,100,24,0xffffffff,120,5);assert(pixels!=still);for(int y=0;y<1080;++y) for(int x=0;x<1920;++x) if(x<100 || x>=220 || y<100 || y>=145) assert(pixels[(size_t)y*1920+x]==0xff102030);
     canvas.clip({100,100,120,45});canvas.roundedRect({60,60,250,180},20,0xffffffff);for(int y=0;y<1080;++y) for(int x=0;x<1920;++x) if(x<100 || x>=220 || y<100 || y>=145) assert(pixels[(size_t)y*1920+x]==0xff102030);canvas.clip({0,0,1920,1080});
+    std::fill(pixels.begin(),pixels.end(),0xff102030);canvas.clip({320,165,1580,760});canvas.origin(-288);canvas.icon("lb_ic_thumb_up",{300,300,64,64});canvas.icon("lb_ic_thumb_down",{590,300,64,64});for(int y=0;y<1080;++y) for(int x=0;x<320;++x) assert(pixels[(size_t)y*1920+x]==0xff102030);canvas.origin(0);canvas.clip({0,0,1920,1080});
+    smarttube::drawLoadingSpinner(canvas,1920,1080,0);auto spinner=pixels;smarttube::drawLoadingSpinner(canvas,1920,1080,0.5);assert(pixels!=spinner && pixels[0]==0xff000000);
     smarttube::drawAccount(canvas,"Approve this code on your device","TEST-CODE","https://www.google.com/device");save("build/beta-pairing.ppm",pixels);
 }

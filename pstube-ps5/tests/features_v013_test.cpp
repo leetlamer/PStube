@@ -1,9 +1,12 @@
 #include "player_features.h"
+#include "seek_preview.h"
 #include <cassert>
 #include <cstdio>
 using namespace smarttube;
 static Json parse(const std::string& text) {Json value;std::string error;assert(parseJson(text,value,error));return value;}
 int main() {
+    auto story=probe::SeekStoryboard::parse("https://i.ytimg.com/sb/fixture/storyboard3_L$L/$N.jpg|48#27#100#10#10#0#default#sig|160#90#90#5#5#2000#M$M#signature");assert(story.valid());auto preview=story.at(54);assert(preview.index==27 && preview.crop.x==320 && preview.crop.y==0 && preview.url=="https://i.ytimg.com/sb/fixture/storyboard3_L1/M1.jpg?sigh=signature");assert(!probe::SeekStoryboard::parse("https://untrusted.invalid/sb/v/$N|160#90#90#5#5#2000#M$M#sig").valid());
+
     PlayerFeatures metadata;metadata.player(parse(R"({"videoDetails":{"author":"Creator","viewCount":"123456"},"microformat":{"playerMicroformatRenderer":{"publishDate":"2026-10-01"}}})"));
     metadata.next(parse(R"({"videoMetadataRenderer":{"likeButton":{"likeButtonRenderer":{"likeCount":456}},"owner":{"videoOwnerRenderer":{"title":{"simpleText":"Creator"},"subscriberCountText":{"simpleText":"12K subscribers"}}}}})"));
     Video enriched;metadata.apply(enriched);assert(enriched.channel=="Creator" && enriched.views=="123456 views" && enriched.published=="2026-10-01" && enriched.likes=="456" && enriched.dislikes.empty() && enriched.subscribers=="12K subscribers");
