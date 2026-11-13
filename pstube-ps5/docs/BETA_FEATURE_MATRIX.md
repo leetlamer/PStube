@@ -1,10 +1,13 @@
-# Beta 0.17 feature status
+# Beta 0.19 feature status
 
 | Area | Implementation | Verification |
 |---|---|---|
 | Category shelves | Horizontal rows, per-row cursor/continuation, modern nested headers; independent row/page pagination | Prior installed v015 console: Home2→13, Music4→11, Gaming3→11, News4→16 rows; Live server end |
-| Thumbnails | 640×360 cache, rounded larger cards, animated rows and side previews | UBSan slow-branding concurrency checks; rendered UI checked |
+| Thumbnails | 640×360 landscape / 360×640 portrait cache, four-column landscape cards, portrait Shorts, animated horizontal/vertical rows and hidden sidebar | UBSan slow-branding concurrency checks; rendered UI checked |
 | Stream recovery | Buffered exact-byte HTTP resume; bounded URL refresh/reseek | Host receive-error/short-body fault tests; real console forced interruptions |
+| Settings | Dedicated settings hub; playback-only settings panel with reachable Back | Target/host build; interactive console check pending |
+| Buffer presets | Persisted Low/Normal/High/Maximum; bounded byte-based VOD targets, protected live policy | UBSan policy bounds/persistence; console Normal regression |
+| Video information | Channel/views/date, available subscriber and thumb counts; async selected-card enrichment | Host desktop/TV schema tests; real search capture; unavailable dislikes explicit |
 | HDR output | Unavailable: current verified display path is 8-bit SDR | HDR sources excluded to prevent incorrect color |
 | Selected description | Async creator metadata, clipped UTF8 right-to-left marquee | Console description1171bytes; host timing/clipping checks |
 | Playback information | Actual source dimensions, fractional FPS, codec and software threads | Host actual decoder metrics; console regression |
@@ -17,7 +20,7 @@
 | Frame pacing | Valid PTS priority; detected source-rate fallback for absent PTS | Target/host regression; HDMI refresh switching not implemented |
 | SponsorBlock | Optional automatic skips, category/minimum/notice settings and coloured markers | Real console API returned6segments; all6skipped; host policy/persistence and pixel-colour checks |
 | DeArrow | Independent titles/thumbnails options, trusted alternatives, original fallback; default Off | Console two title replacements; alternate image delivery unverified |
-| VOD VP9/Opus, AVC/AAC | 6/8/10 video threads (8 default), 2 scaler threads, 8MiB rings and validated range reconnect | Owner varied playback and console regression; native4K remains source-dependent |
+| VOD VP9/Opus, AVC/AAC | 6/8/10 video threads (8 default), 2 scaler threads, bitrate-based bounded compressed buffers (up to 32MiB video/2MiB audio) and validated range reconnect | Owner varied playback and console regression; native4K remains source-dependent |
 | Live AVC/AAC HLS | Rolling segments, separate audio, bounded rings | Short 1080p60 console test; longer prior tests; experimental |
 | VOD seeking | Progress/preview, elapsed/duration/remaining, byte ranges, fresh AV clocks | Console forward/backward and long seeks; host keyframe/audio trimming test |
 | Resume after restart, live DVR | Pending | VOD seeking implemented; persistence/live timeline work remains |
