@@ -11,7 +11,7 @@
 #undef curl_easy_setopt
 #undef curl_easy_getinfo
 struct Transfer {curl_write_callback header=nullptr,write=nullptr;void* headers=nullptr;void* body=nullptr;std::string range;long status=0;};
-static std::string payload;static std::atomic<unsigned> calls{0};static int scenario=0;static constexpr size_t split=3*1024*1024+37;
+static std::atomic<bool> releaseRefill{false};static std::string payload;static std::atomic<unsigned> calls{0};static int scenario=0;static constexpr size_t split=3*1024*1024+37;
 extern "C" CURL* curl_easy_init() {return reinterpret_cast<CURL*>(new Transfer);}
 extern "C" void curl_easy_cleanup(CURL* c) {delete reinterpret_cast<Transfer*>(c);}
 extern "C" void curl_easy_reset(CURL* c) {*reinterpret_cast<Transfer*>(c)=Transfer{};}
@@ -32,6 +32,7 @@ extern "C" CURLcode curl_easy_perform(CURL* c) {
     if(t.status==206) header("Content-Range: bytes "+std::to_string(offset)+"-"+std::to_string(payload.size()-1)+"/"+std::to_string(payload.size())+"\r\n");
     else header("Content-Length: "+std::to_string(payload.size())+"\r\n");header("\r\n");
     size_t end=attempt==0 && scenario<3?split:payload.size();
+    if(scenario==5) {assert(t.write(payload.data(),1,64000,t.body)==64000);while(!releaseRefill) std::this_thread::yield();offset=64000;}
     for(size_t p=offset;p<end;) {size_t n=std::min((size_t)17003,end-p);if(t.write(payload.data()+p,1,n,t.body)!=n) return CURLE_WRITE_ERROR;p+=n;}
     return attempt==0 && scenario<2?CURLE_RECV_ERROR:CURLE_OK;
 }
@@ -48,5 +49,6 @@ int main() {
         if(scenario==1) {assert(n==AVERROR(EIO));assert(output==payload.substr(0,split));}else {assert(n==AVERROR_EOF);assert(output==payload);}}
     scenario=4;calls=0;{probe::CurlStream stream(logMessage,32768);assert(stream.start("https://fixture.invalid/audio","test"));std::string output;uint8_t bytes[3001];int n;while((n=probe::CurlStream::read(&stream,bytes,sizeof(bytes)))>0) output.append((char*)bytes,n);assert(n==AVERROR_EOF && output==payload && calls==2);}
     scenario=3;calls=0;auto start=std::chrono::steady_clock::now();{probe::CurlStream stream(logMessage);assert(stream.start("https://fixture.invalid/video","test"));std::this_thread::sleep_for(std::chrono::milliseconds(40));stream.cancel();stream.close();}assert(std::chrono::steady_clock::now()-start<std::chrono::seconds(1));
+    scenario=5;calls=0;releaseRefill=false;{std::atomic<bool> waiting{false};probe::CurlStream stream(logMessage);stream.configure(128000,false,false,[&](bool value){waiting=value;});assert(stream.start("https://fixture.invalid/video","test"));while(!stream.ready()) std::this_thread::yield();uint8_t bytes[64000];assert(probe::CurlStream::read(&stream,bytes,64000)==64000);assert(!memcmp(bytes,payload.data(),64000));int next=0;std::thread reader([&]{next=probe::CurlStream::read(&stream,bytes,1);});auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);while(!waiting && std::chrono::steady_clock::now()<deadline) std::this_thread::yield();assert(waiting);releaseRefill=true;reader.join();assert(next==1 && bytes[0]==(uint8_t)payload[64000] && !waiting);stream.cancel();stream.close();}
     puts("PASS: exact-byte recovery after receive error/short EOF, strict Range validation, fault diagnostic and full-ring cancellation");
 }

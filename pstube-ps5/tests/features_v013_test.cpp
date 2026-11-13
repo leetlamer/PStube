@@ -4,6 +4,11 @@
 using namespace smarttube;
 static Json parse(const std::string& text) {Json value;std::string error;assert(parseJson(text,value,error));return value;}
 int main() {
+    PlayerFeatures metadata;metadata.player(parse(R"({"videoDetails":{"author":"Creator","viewCount":"123456"},"microformat":{"playerMicroformatRenderer":{"publishDate":"2026-10-01"}}})"));
+    metadata.next(parse(R"({"videoMetadataRenderer":{"likeButton":{"likeButtonRenderer":{"likeCount":456}},"owner":{"videoOwnerRenderer":{"title":{"simpleText":"Creator"},"subscriberCountText":{"simpleText":"12K subscribers"}}}}})"));
+    Video enriched;metadata.apply(enriched);assert(enriched.channel=="Creator" && enriched.views=="123456 views" && enriched.published=="2026-10-01" && enriched.likes=="456" && enriched.dislikes.empty() && enriched.subscribers=="12K subscribers");
+    auto cards=catalog(parse(R"({"items":[{"videoId":"fixture","title":{"simpleText":"Title"},"shortBylineText":{"simpleText":"Creator"},"viewCountText":{"simpleText":"1K views"},"publishedTimeText":{"simpleText":"2 days ago"}}]})"));assert(cards.size()==1 && cards[0].views=="1K views" && cards[0].published=="2 days ago");
+
     auto root=parse(R"({"sections":[{"shelfRenderer":{"title":{"runs":[{"text":"Music"}]},"content":{"items":[{"videoId":"fixture-one","title":{"simpleText":"One"}},{"videoId":"fixture-two","title":{"simpleText":"Two"}}]}}},{"shelfRenderer":{"title":{"simpleText":"News"},"items":[{"videoId":"fixture-three","title":{"simpleText":"Three"}}]}}]})");
     std::vector<Video> items;std::vector<Shelf> shelves;shelfCatalog(root,items,shelves);assert(shelves.size()==2 && items.size()==3 && shelves[1].first==2);assert(moveShelf(shelves,0,1,0)==1);assert(moveShelf(shelves,1,0,1)==2);assert(moveShelf(shelves,2,0,-1)==1);
     assert(shelfTitle(parse(R"({"headerRenderer":{"shelfHeaderRenderer":{"title":{"runs":[{"text":"Recommended music"}]}}}})"))=="Recommended music");
