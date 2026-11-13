@@ -17,9 +17,9 @@ no PC transcoding server is required.
 
 ## Requirements
 
-- A PS5 with a compatible homebrew environment and **OnionHEN active**.
-- **websrv (Homebrew Launcher)** to launch PStube in a foreground graphics context.
-- An internet connection. Google sign-in is optional.
+- A PS5 with a compatible homebrew environment and **OnionHEN active**. (found in Payload Manager)
+- **websrv (Homebrew Launcher)** to launch PStube in a foreground graphics context. (Payload manager)
+- An internet connection. nano DNS or similar recommended. Google sign-in is optional.
 - USB or FTP access to copy the application folder onto the console.
 
 Tested on **PS5 Pro firmware 13.00, OnionHEN 0.9.0 and websrv 0.34**.
