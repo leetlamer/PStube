@@ -23,6 +23,6 @@ notices remain applicable to the files and assets to which they refer.
   (https://dearrow.ajay.app). Data is fetched at runtime, not bundled; their respective
   data terms apply. API documentation: https://wiki.sponsor.ajay.app/w/API_Docs.
 
-YouTube thumbnails and metadata in the Gaming screenshot were returned by the service
+YouTube thumbnails and metadata in the Gaming and playback screenshots were returned by the service
 at capture time. They identify the displayed videos and are not PStube artwork.
 PStube is independent and is not affiliated with Sony or Google.
